@@ -15,7 +15,7 @@ import { oklch, formatHex, clampChroma, parse } from "culori";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Bump LIB_VERSION when nsp-ds-tokens cuts a new release.
-const LIB_VERSION = "v0.3.0";
+const LIB_VERSION = "v0.3.2";
 const LIB_DEP = `github:asimonato/nsp-ds-tokens#${LIB_VERSION}`;
 const LIB_GITHUB_URL = "https://github.com/asimonato/nsp-ds-tokens";
 
@@ -714,16 +714,19 @@ export function checkContrast(merged) {
 
     write("tokens/semantic/color.json", {
       surface: {
-        "primary-xlight": ct(ps(3), ps(10)),
-        "primary-light": ct(ps(8), ps(10)),
+        // Primary family: solid → interaction → lighter → lightest
         primary: ct(ps(9), ps(9)),
         "primary-hover": ct(ps(10), ps(8)),
+        "primary-light": ct(ps(8), ps(10)),
+        "primary-xlight": ct(ps(3), ps(10)),
+        // Secondary family (ghost/soft)
         secondary: ct("{palette.secondary.3}", "{palette.secondary.3}"),
         "secondary-hover": ct("{palette.secondary.4}", "{palette.secondary.4}"),
         "secondary-active": ct(
           "{palette.secondary.5}",
           "{palette.secondary.5}",
         ),
+        // Tertiary family (neutral accent)
         tertiary: ct("{palette.tertiary.3}", "{palette.tertiary.3}"),
         "tertiary-hover": ct("{palette.tertiary.4}", "{palette.tertiary.4}"),
         "tertiary-active": ct("{palette.tertiary.5}", "{palette.tertiary.5}"),
@@ -731,10 +734,13 @@ export function checkContrast(merged) {
         "tertiary-darker": ct("{palette.neutral.12}", "{palette.neutral.11}"),
       },
       text: {
+        // Core brand text
         title: ct(ps(ts), ps(12)),
+        // Primary family variants
         "primary-light": ct(ps(8), ps(8)),
         "primary-xlight": ct(ps(3), ps(3)),
         "primary-hover": ct(ps(th), ps(12)),
+        // On-color tokens (paired with brand surfaces)
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
         ...hoverOnTokens,
         "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
@@ -748,13 +754,16 @@ export function checkContrast(merged) {
         default: ct(ps(9), ps(8)),
       },
       icon: {
+        // Primary family
         primary: ct(ps(is_), ps(12)),
         "primary-light": ct(ps(8), ps(11)),
         "primary-hover": ct(ps(ih), ps(12)),
+        // Secondary
         secondary: ct(
           `{palette.secondary.${secondaryIconSel.step}}`,
           "{palette.secondary.12}",
         ),
+        // On-color tokens (paired with brand surfaces)
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
         ...hoverOnTokens,
         "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
