@@ -262,6 +262,25 @@ function mauveSlot(origin) {
   return slot;
 }
 
+// ghostSlot: used when secondary is auto-derived from the primary scale.
+// Unlike brandSlot (.default=step9), ghost secondary uses soft/tint steps:
+//   .default = step 3  (ghost surface background)
+//   .hover   = step 4  (ghost hover surface)
+//   .active  = step 5  (ghost pressed/active surface)
+//   .text    = step 11 (accessible text on white using this hue)
+// Steps 1-12 are still aliased so semantic tokens can reference any step directly.
+function ghostSlot(hueRef, origin) {
+  const slot = {};
+  for (let i = 1; i <= 12; i++)
+    slot[String(i)] = { $type: "color", $value: `{${hueRef}.${i}}` };
+  slot.default = { $type: "color", $value: `{${hueRef}.3}` };
+  slot.hover = { $type: "color", $value: `{${hueRef}.4}` };
+  slot.active = { $type: "color", $value: `{${hueRef}.5}` };
+  slot.text = { $type: "color", $value: `{${hueRef}.11}` };
+  slot.$extensions = { nsp: { origin } };
+  return slot;
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -480,7 +499,6 @@ async function main() {
         ` on-primary uses ${onPrimary.darkRef.replace(/[{}]/g, "")} for the base surface.` +
         ` Use text/icon.on-primary-hover for hover/pressed states.`;
       BRAND_EXEMPT["icon.on-primary × surface.primary-hover"] = msg;
-      BRAND_EXEMPT["icon.on-primary × surface.primary-dark"] = msg;
     }
 
     if (!secondaryIconSel.passed && secondaryScale !== primaryScale) {
@@ -667,7 +685,10 @@ export function checkContrast(merged) {
       palette: {
         $extensions: { "com.figma.scoping": [] },
         primary: brandSlot(primaryRef, origin),
-        secondary: brandSlot(secondaryRef, origin),
+        secondary:
+          secondaryScale === primaryScale
+            ? ghostSlot(secondaryRef, origin)
+            : brandSlot(secondaryRef, origin),
         tertiary: mauveSlot(origin),
         ...(hasAccent ? { accent: brandSlot(accentRef, origin) } : {}),
       },
@@ -688,10 +709,6 @@ export function checkContrast(merged) {
             onPrimaryHover.lightRef,
             onPrimaryHover.darkRef,
           ),
-          "on-primary-dark": ct(
-            onPrimaryHover.lightRef,
-            onPrimaryHover.darkRef,
-          ),
         }
       : {};
 
@@ -700,7 +717,6 @@ export function checkContrast(merged) {
         "primary-xlight": ct(ps(3), ps(10)),
         "primary-light": ct(ps(8), ps(10)),
         primary: ct(ps(9), ps(9)),
-        "primary-dark": ct(ps(10), ps(8)),
         "primary-hover": ct(ps(10), ps(8)),
         secondary: ct("{palette.secondary.3}", "{palette.secondary.3}"),
         "secondary-hover": ct("{palette.secondary.4}", "{palette.secondary.4}"),
@@ -716,7 +732,6 @@ export function checkContrast(merged) {
       },
       text: {
         title: ct(ps(ts), ps(12)),
-        primary: ct(ps(ts), ps(12)),
         "primary-light": ct(ps(8), ps(8)),
         "primary-xlight": ct(ps(3), ps(3)),
         "primary-hover": ct(ps(th), ps(12)),
