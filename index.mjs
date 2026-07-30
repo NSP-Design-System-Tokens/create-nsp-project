@@ -4,8 +4,8 @@
 // No dependency on a local nsp-ds-tokens clone: the library is fetched from
 // GitHub when the generated project runs `npm install`.
 //
-// Usage (interactive):     npx github:asimonato/create-nsp-project
-// Usage (non-interactive): npx github:asimonato/create-nsp-project <name> <primaryHex> [secondaryHex] [accentHex]
+// Usage (interactive):     npx github:NSP-Design-System-Tokens/create-nsp-project
+// Usage (non-interactive): npx github:NSP-Design-System-Tokens/create-nsp-project <name> <primaryHex> [secondaryHex] [accentHex]
 
 import { createInterface } from "node:readline/promises";
 import { mkdirSync, writeFileSync, copyFileSync, existsSync } from "node:fs";
@@ -16,8 +16,9 @@ import { oklch, formatHex, clampChroma, parse } from "culori";
 // ── Config ────────────────────────────────────────────────────────────────────
 // Bump LIB_VERSION when nsp-ds-tokens cuts a new release.
 const LIB_VERSION = "v0.3.3";
-const LIB_DEP = `github:asimonato/nsp-ds-tokens#${LIB_VERSION}`;
-const LIB_GITHUB_URL = "https://github.com/asimonato/nsp-ds-tokens";
+const LIB_DEP = `github:NSP-Design-System-Tokens/nsp-ds-tokens#${LIB_VERSION}`;
+const LIB_GITHUB_URL =
+  "https://github.com/NSP-Design-System-Tokens/nsp-ds-tokens";
 
 // ── Inline contrast ratio ─────────────────────────────────────────────────────
 // Inlined so this tool has no dependency on nsp-ds-tokens being installed locally.
