@@ -177,7 +177,12 @@ function pickTextStep(lightSteps) {
     if (r >= 4.5) return { step: idx + 1, hex, ratio: r, passed: true };
     if (!best || r > best.ratio) best = { idx, hex, ratio: r };
   }
-  return { step: best.idx + 1, hex: best.hex, ratio: best.ratio, passed: false };
+  return {
+    step: best.idx + 1,
+    hex: best.hex,
+    ratio: best.ratio,
+    passed: false,
+  };
 }
 
 // pickIconStep: first step (scanning 9→12→8) that achieves 3:1 on white.
@@ -191,7 +196,12 @@ function pickIconStep(lightSteps) {
     if (r >= 3.0) return { step: idx + 1, hex, ratio: r, passed: true };
     if (!best || r > best.ratio) best = { idx, hex, ratio: r };
   }
-  return { step: best.idx + 1, hex: best.hex, ratio: best.ratio, passed: false };
+  return {
+    step: best.idx + 1,
+    hex: best.hex,
+    ratio: best.ratio,
+    passed: false,
+  };
 }
 
 // ── readline helpers ──────────────────────────────────────────────────────────
@@ -290,21 +300,29 @@ async function main() {
         ? argSecondary
         : await prompt(
             rl,
-            "Secondary color (#hex, or Enter = same as primary): ",
+            "Secondary color (#hex, or Enter = auto soft-tint from primary): ",
             validateHex,
           );
 
+    // Accent is a distinct optional fourth color. Enter (or omitting the arg
+    // in non-interactive mode) skips the slot — no palette.accent, no emphasis.*.
+    // In non-interactive mode (argName provided) an absent accent is a silent skip.
     const accentRaw =
       argAccent !== undefined
         ? argAccent
-        : await prompt(
-            rl,
-            "Accent color (#hex, or Enter = same as primary): ",
-            validateHex,
-          );
+        : argName !== undefined
+          ? ""
+          : await prompt(
+              rl,
+              "Accent color (#hex, or Enter = skip accent slot): ",
+              validateHex,
+            );
 
+    // Secondary empty → shares the primary scale; palette.secondary.3 gives
+    // a natural soft-tint surface without generating a separate color file.
     const secondaryHex = secondaryRaw || primaryHex;
-    const accentHex = accentRaw || primaryHex;
+    const hasAccent = Boolean(accentRaw);
+    const accentHex = hasAccent ? accentRaw : null;
 
     // 2. Generate scales
     console.log("\nGenerating color scales...");
@@ -312,8 +330,9 @@ async function main() {
     const primaryScale = generateScale(primaryHex);
     const secondaryScale =
       secondaryHex === primaryHex ? primaryScale : generateScale(secondaryHex);
-    const accentScale =
-      accentHex === primaryHex
+    const accentScale = !hasAccent
+      ? null
+      : accentHex === primaryHex
         ? primaryScale
         : accentHex === secondaryHex
           ? secondaryScale
@@ -322,8 +341,9 @@ async function main() {
     const primaryKey = name;
     const secondaryKey =
       secondaryScale === primaryScale ? name : `${name}-secondary`;
-    const accentKey =
-      accentScale === primaryScale
+    const accentKey = !hasAccent
+      ? null
+      : accentScale === primaryScale
         ? name
         : accentScale === secondaryScale
           ? secondaryKey
@@ -331,14 +351,19 @@ async function main() {
 
     const primaryRef = `color.${primaryKey}`;
     const secondaryRef = `color.${secondaryKey}`;
-    const accentRef = `color.${accentKey}`;
+    const accentRef = hasAccent ? `color.${accentKey}` : null;
     const origin = `brand-${name}`;
 
     console.log(`  ✓ ${primaryRef}: step 9 = ${primaryScale.anchor}`);
     if (secondaryScale !== primaryScale)
       console.log(`  ✓ ${secondaryRef}: step 9 = ${secondaryScale.anchor}`);
-    if (accentScale !== primaryScale && accentScale !== secondaryScale)
+    if (
+      hasAccent &&
+      accentScale !== primaryScale &&
+      accentScale !== secondaryScale
+    )
       console.log(`  ✓ color.${accentKey}: step 9 = ${accentScale.anchor}`);
+    if (!hasAccent) console.log(`  — accent: skipped`);
 
     // 3. Auto-select on-colors for every role and every surface state, in both modes.
     //
@@ -395,11 +420,7 @@ async function main() {
       );
     };
 
-    logOnColor(
-      "on-primary (step 9)",
-      primaryScale.anchor,
-      onPrimary,
-    );
+    logOnColor("on-primary (step 9)", primaryScale.anchor, onPrimary);
     if (primaryHoverDiffers) {
       logOnColor(
         "on-primary-hover (step10L/step8D)",
@@ -630,7 +651,11 @@ export function checkContrast(merged) {
         secondaryScale.darkSteps,
         origin,
       );
-    if (accentScale !== primaryScale && accentScale !== secondaryScale)
+    if (
+      hasAccent &&
+      accentScale !== primaryScale &&
+      accentScale !== secondaryScale
+    )
       colorJson.color[accentKey] = buildColorTree(
         accentScale.lightSteps,
         accentScale.darkSteps,
@@ -644,7 +669,7 @@ export function checkContrast(merged) {
         primary: brandSlot(primaryRef, origin),
         secondary: brandSlot(secondaryRef, origin),
         tertiary: mauveSlot(origin),
-        accent: brandSlot(accentRef, origin),
+        ...(hasAccent ? { accent: brandSlot(accentRef, origin) } : {}),
       },
     });
 
@@ -659,8 +684,14 @@ export function checkContrast(merged) {
     // identity color inverts to dark in the dark-mode hover step).
     const hoverOnTokens = primaryHoverDiffers
       ? {
-          "on-primary-hover": ct(onPrimaryHover.lightRef, onPrimaryHover.darkRef),
-          "on-primary-dark": ct(onPrimaryHover.lightRef, onPrimaryHover.darkRef),
+          "on-primary-hover": ct(
+            onPrimaryHover.lightRef,
+            onPrimaryHover.darkRef,
+          ),
+          "on-primary-dark": ct(
+            onPrimaryHover.lightRef,
+            onPrimaryHover.darkRef,
+          ),
         }
       : {};
 
@@ -718,10 +749,17 @@ export function checkContrast(merged) {
         default: ct(ps(8), ps(8)),
         dark: ct(ps(10), ps(10)),
       },
-      emphasis: {
-        default: ct("{palette.accent.default}", "{palette.accent.subtle}"),
-        subtle: ct("{palette.accent.2}", "{palette.accent.4}"),
-      },
+      ...(hasAccent
+        ? {
+            emphasis: {
+              default: ct(
+                "{palette.accent.default}",
+                "{palette.accent.subtle}",
+              ),
+              subtle: ct("{palette.accent.2}", "{palette.accent.4}"),
+            },
+          }
+        : {}),
     });
 
     // 11. CLAUDE.md
@@ -731,9 +769,13 @@ export function checkContrast(merged) {
       ...(secondaryScale !== primaryScale
         ? [`- Secondary (step 9): \`${secondaryScale.anchor}\``]
         : []),
-      ...(accentScale !== primaryScale && accentScale !== secondaryScale
-        ? [`- Accent (step 9): \`${accentScale.anchor}\``]
-        : []),
+      ...(!hasAccent
+        ? [`- Accent: not generated (slot skipped)`]
+        : accentScale !== primaryScale && accentScale !== secondaryScale
+          ? [`- Accent (step 9): \`${accentScale.anchor}\``]
+          : [
+              `- Accent: shares ${accentScale === primaryScale ? "primary" : "secondary"} scale`,
+            ]),
       `- text/icon.on-primary: ${onPrimaryDir} (${onPrimary.lightRatio.toFixed(2)}:1 on primary.9)`,
       ...(primaryHoverDiffers
         ? [
@@ -759,7 +801,7 @@ This repo adds only what is ${name}-specific.
 \`\`\`
 tokens/
   core/color.json     ← ${name} brand color scale (12 steps, light + dark)
-  brand/${name}.json  ← palette slot aliases: primary, secondary, tertiary, accent
+  brand/${name}.json  ← palette slot aliases: primary, secondary, tertiary${hasAccent ? ", accent" : ""}
   semantic/color.json ← brand semantic roles: surface.primary, text.on-primary, …
 \`\`\`
 
