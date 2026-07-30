@@ -129,63 +129,69 @@ function buildColorTree(lightSteps, darkSteps, origin) {
 }
 
 // ── on-color selection ────────────────────────────────────────────────────────
+//
+// computeOnColor evaluates the best foreground (white or black) independently
+// for the light-mode and dark-mode hex of a surface. This is required because
+// hover/active surfaces use different scale steps per mode (e.g. step 10 in
+// light, step 8 in dark), and those steps can fall on opposite sides of the
+// light/dark divide — making a single static foreground impossible.
+//
+// Refs use palette.neutral which carries Radix modes automatically:
+//   neutral.0  = color.white  (#ffffff, always)
+//   neutral.12 = mauve.12     (near-black in light, near-white in dark)
+//   neutral.1  = mauve.1      (near-white in light, near-black in dark)
+//
+// Mapping:
+//   light surface needs white → lightRef neutral.0,  darkRef neutral.12
+//   light surface needs black → lightRef neutral.12, darkRef neutral.1
+//   dark surface needs white  → (handled via darkRef = neutral.12)
+//   dark surface needs black  → (handled via darkRef = neutral.1)
 
-function pickOnColor(step9Hex) {
-  const WHITE = "#ffffff";
-  const BLACK = "#000000";
-  const ratioWhite = contrast(WHITE, step9Hex);
-  const ratioBlack = contrast(BLACK, step9Hex);
-  if (ratioWhite >= 4.5)
-    return {
-      lightRef: "{palette.neutral.0}",
-      darkRef: "{palette.neutral.0}",
-      hex: WHITE,
-      ratio: ratioWhite,
-      passed: true,
-    };
-  if (ratioBlack >= 4.5)
-    return {
-      lightRef: "{palette.neutral.12}",
-      darkRef: "{palette.neutral.1}",
-      hex: BLACK,
-      ratio: ratioBlack,
-      passed: true,
-    };
-  if (ratioWhite >= ratioBlack)
-    return {
-      lightRef: "{palette.neutral.0}",
-      darkRef: "{palette.neutral.0}",
-      hex: WHITE,
-      ratio: ratioWhite,
-      passed: false,
-    };
+function computeOnColor(lightSurfaceHex, darkSurfaceHex) {
+  const ratioLW = contrast("#ffffff", lightSurfaceHex);
+  const ratioLB = contrast("#000000", lightSurfaceHex);
+  const lightWhite = ratioLW >= ratioLB;
+  const ratioDW = contrast("#ffffff", darkSurfaceHex);
+  const ratioDB = contrast("#000000", darkSurfaceHex);
+  const darkWhite = ratioDW >= ratioDB;
   return {
-    lightRef: "{palette.neutral.12}",
-    darkRef: "{palette.neutral.1}",
-    hex: BLACK,
-    ratio: ratioBlack,
-    passed: false,
+    lightRef: lightWhite ? "{palette.neutral.0}" : "{palette.neutral.12}",
+    darkRef: darkWhite ? "{palette.neutral.12}" : "{palette.neutral.1}",
+    lightRatio: lightWhite ? ratioLW : ratioLB,
+    darkRatio: darkWhite ? ratioDW : ratioDB,
+    lightPassed: (lightWhite ? ratioLW : ratioLB) >= 4.5,
+    darkPassed: (darkWhite ? ratioDW : ratioDB) >= 4.5,
+    lightHex: lightWhite ? "#ffffff" : "#000000",
+    darkHex: darkWhite ? "#ffffff" : "#000000",
   };
 }
 
+// pickTextStep: first step (scanning 9→12) that achieves 4.5:1 on white.
+// When none pass, returns the step with the highest contrast (best available).
 function pickTextStep(lightSteps) {
-  const WHITE = "#ffffff";
-  for (const idx of [8, 9, 10, 11]) {
+  const candidates = [8, 9, 10, 11];
+  let best = null;
+  for (const idx of candidates) {
     const hex = lightSteps[idx];
-    if (contrast(hex, WHITE) >= 4.5)
-      return { step: idx + 1, hex, passed: true };
+    const r = contrast(hex, "#ffffff");
+    if (r >= 4.5) return { step: idx + 1, hex, ratio: r, passed: true };
+    if (!best || r > best.ratio) best = { idx, hex, ratio: r };
   }
-  return { step: 12, hex: lightSteps[11], passed: false };
+  return { step: best.idx + 1, hex: best.hex, ratio: best.ratio, passed: false };
 }
 
+// pickIconStep: first step (scanning 9→12→8) that achieves 3:1 on white.
+// When none pass, returns the step with the highest contrast (best available).
 function pickIconStep(lightSteps) {
-  const WHITE = "#ffffff";
-  for (const idx of [8, 9, 10, 11, 7]) {
+  const candidates = [8, 9, 10, 11, 7];
+  let best = null;
+  for (const idx of candidates) {
     const hex = lightSteps[idx];
-    if (contrast(hex, WHITE) >= 3.0)
-      return { step: idx + 1, hex, passed: true };
+    const r = contrast(hex, "#ffffff");
+    if (r >= 3.0) return { step: idx + 1, hex, ratio: r, passed: true };
+    if (!best || r > best.ratio) best = { idx, hex, ratio: r };
   }
-  return { step: 12, hex: lightSteps[11], passed: false };
+  return { step: best.idx + 1, hex: best.hex, ratio: best.ratio, passed: false };
 }
 
 // ── readline helpers ──────────────────────────────────────────────────────────
@@ -334,17 +340,89 @@ async function main() {
     if (accentScale !== primaryScale && accentScale !== secondaryScale)
       console.log(`  ✓ color.${accentKey}: step 9 = ${accentScale.anchor}`);
 
-    const onPrimary = pickOnColor(primaryScale.anchor);
+    // 3. Auto-select on-colors for every role and every surface state, in both modes.
+    //
+    // Primary: surface.primary = step 9 (both modes, same anchor hex).
+    //          surface.primary-hover/dark = step 10 light / step 8 dark.
+    // Secondary: surface.secondary = step 3 (same step in both modes).
+    //            surface.secondary-hover = step 4, secondary-active = step 5.
+    //
+    // Steps are evaluated independently per mode so that a surface that inverts
+    // from bright (light) to dark (dark) gets the correct foreground in each.
+
+    // Primary base surface (step 9, same hex in both modes)
+    const onPrimary = computeOnColor(
+      primaryScale.lightSteps[8],
+      primaryScale.darkSteps[8],
+    );
+
+    // Primary hover/active surface (step 10 in light, step 8 in dark)
+    const onPrimaryHover = computeOnColor(
+      primaryScale.lightSteps[9],
+      primaryScale.darkSteps[7],
+    );
+
+    // When hover needs a different foreground in either mode, generate extra tokens
+    // and add CONTRAST_EXEMPT so the base on-primary is not gated against states
+    // it was never designed to cover.
+    const primaryHoverDiffers =
+      onPrimary.lightRef !== onPrimaryHover.lightRef ||
+      onPrimary.darkRef !== onPrimaryHover.darkRef;
+
+    // Secondary: surface.secondary = step 3 (same step in both modes)
+    const onSecondary = computeOnColor(
+      secondaryScale.lightSteps[2],
+      secondaryScale.darkSteps[2],
+    );
+
+    // Text/icon steps on white (light mode) for brand-colored foregrounds
     const textSel = pickTextStep(primaryScale.lightSteps);
     const iconSel = pickIconStep(primaryScale.lightSteps);
 
+    // Secondary icon step on white — must be computed from the secondary scale,
+    // not hardcoded. pickIconStep scans step 9→12→8 and finds the first step
+    // that achieves 3:1; returns best available when none pass.
+    const secondaryIconSel = pickIconStep(secondaryScale.lightSteps);
+
+    // 4. Report selections
     console.log("\nAuto-selected on-color:");
-    console.log(
-      `  on-primary: ${onPrimary.hex} (${onPrimary.ratio.toFixed(2)}:1` +
-        ` on ${primaryScale.anchor}) ${onPrimary.passed ? "✓" : "⚠ below 4.5:1"}`,
+
+    const logOnColor = (label, surfaceHex, on) => {
+      const dir = on.lightHex === "#ffffff" ? "white" : "black";
+      const flag = on.lightPassed ? "✓" : "⚠ below 4.5:1";
+      console.log(
+        `  ${label} (${surfaceHex}): ${dir} — light ${on.lightRatio.toFixed(2)}:1 ${flag}, dark ${on.darkRatio.toFixed(2)}:1 ${on.darkPassed ? "✓" : "⚠ below 4.5:1"}`,
+      );
+    };
+
+    logOnColor(
+      "on-primary (step 9)",
+      primaryScale.anchor,
+      onPrimary,
     );
+    if (primaryHoverDiffers) {
+      logOnColor(
+        "on-primary-hover (step10L/step8D)",
+        `${primaryScale.lightSteps[9]}/${primaryScale.darkSteps[7]}`,
+        onPrimaryHover,
+      );
+      console.log(
+        `  ⚠ Primary hover/active need different foreground in dark mode.\n` +
+          `    Generating text/icon.on-primary-hover and .on-primary-dark tokens.\n` +
+          `    Adding CONTRAST_EXEMPT for icon.on-primary × primary-hover/dark (REAL GAP).`,
+      );
+    }
+
+    const secLabel =
+      secondaryScale === primaryScale ? "secondary=primary" : "on-secondary";
+    logOnColor(
+      `${secLabel} (step3L/step3D)`,
+      `${secondaryScale.lightSteps[2]}/${secondaryScale.darkSteps[2]}`,
+      onSecondary,
+    );
+
     console.log(
-      `  brand text step: ${textSel.step} (${textSel.hex}) ${textSel.passed ? "✓" : "⚠ no step achieves 4.5:1 on white"}`,
+      `  brand text step: ${textSel.step} (${textSel.hex}, ${textSel.ratio.toFixed(2)}:1) ${textSel.passed ? "✓" : "⚠ no step achieves 4.5:1 on white"}`,
     );
     if (!textSel.passed)
       console.warn(
@@ -353,9 +431,46 @@ async function main() {
           `    Consider using a darker primary or adding contrast exemptions.`,
       );
 
-    const onSecondaryRef = "{palette.secondary.12}";
+    console.log(
+      `  icon step (primary): ${iconSel.step} (${iconSel.hex}, ${iconSel.ratio.toFixed(2)}:1) ${iconSel.passed ? "✓" : "⚠ no step achieves 3:1 on white"}`,
+    );
 
-    // 3. Create directory + package.json
+    if (secondaryScale !== primaryScale) {
+      console.log(
+        `  icon step (secondary): ${secondaryIconSel.step} (${secondaryIconSel.hex}, ${secondaryIconSel.ratio.toFixed(2)}:1) ${secondaryIconSel.passed ? "✓" : "⚠ no step achieves 3:1 on white"}`,
+      );
+      if (!secondaryIconSel.passed)
+        console.warn(
+          `  ⚠ Secondary color ${secondaryScale.anchor} is too light for accessible icons on white.\n` +
+            `    icon.secondary will use step ${secondaryIconSel.step} (best: ${secondaryIconSel.ratio.toFixed(2)}:1 < 3.0).\n` +
+            `    Adding CONTRAST_EXEMPT for icon.secondary (PHYSICAL limitation).\n` +
+            `    Consider using a darker secondary for accessible icon rendering on white.`,
+        );
+    }
+
+    // 5. Build BRAND_EXEMPT for project-specific contrast gaps
+    const BRAND_EXEMPT = {};
+
+    if (primaryHoverDiffers) {
+      const hoverDarkHex = primaryScale.darkSteps[7];
+      const msg =
+        `REAL GAP — dark mode only: surface.primary-hover/dark = step 8 dark` +
+        ` (${hoverDarkHex}), requires ${onPrimaryHover.darkHex} text;` +
+        ` on-primary uses ${onPrimary.darkRef.replace(/[{}]/g, "")} for the base surface.` +
+        ` Use text/icon.on-primary-hover for hover/pressed states.`;
+      BRAND_EXEMPT["icon.on-primary × surface.primary-hover"] = msg;
+      BRAND_EXEMPT["icon.on-primary × surface.primary-dark"] = msg;
+    }
+
+    if (!secondaryIconSel.passed && secondaryScale !== primaryScale) {
+      BRAND_EXEMPT["icon.secondary"] =
+        `PHYSICAL — secondary color ${secondaryScale.anchor} has no step` +
+        ` achieving 3:1 on white (best: step ${secondaryIconSel.step}` +
+        ` ${secondaryIconSel.hex} = ${secondaryIconSel.ratio.toFixed(2)}:1).` +
+        ` Use a darker secondary color for accessible icon rendering on white.`;
+    }
+
+    // 6. Create directory + package.json
     console.log("\nWriting project files...");
     mkdirSync(dest, { recursive: true });
 
@@ -391,7 +506,7 @@ async function main() {
 
     write(".gitignore", "node_modules/\nbuild/\ndist/\n");
 
-    // 4. npm install — downloads nsp-ds-tokens from GitHub
+    // 7. npm install — downloads nsp-ds-tokens from GitHub
     console.log(
       `\nRunning npm install (fetches nsp-ds-tokens ${LIB_VERSION} from GitHub)...`,
     );
@@ -404,7 +519,7 @@ async function main() {
       process.exit(1);
     }
 
-    // 5. Copy build + validate scripts from the installed library
+    // 8. Copy build + validate scripts from the installed library
     const libScriptsDir = resolve(dest, "node_modules/nsp-ds-tokens/scripts");
     for (const s of [
       "validate.mjs",
@@ -417,7 +532,7 @@ async function main() {
       copyFileSync(join(libScriptsDir, s), dst);
     }
 
-    // 6. Write lib/ wrappers (re-export from nsp-ds-tokens, merge brand overlay)
+    // 9. Write lib/ wrappers
     write(
       "scripts/lib/tokens.mjs",
       `// Wrapper: re-export from nsp-ds-tokens, override loadMerged to include brand tokens.
@@ -446,16 +561,63 @@ export function loadMerged() {
 }
 `,
     );
+
+    // contrast.mjs: extends base CONTRAST_EXEMPT with brand-specific gaps and
+    // overrides checkContrast so the validate gate uses the merged exempt list.
+    const brandExemptEntries = Object.entries(BRAND_EXEMPT)
+      .map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)},`)
+      .join("\n");
+
     write(
       "scripts/lib/contrast.mjs",
-      `export * from "nsp-ds-tokens/scripts/lib/contrast.mjs";\n`,
+      `import {
+  CONTRAST_EXEMPT as BASE_EXEMPT,
+  contrast,
+  resolveColor,
+  thresholdFor,
+  derivePairs,
+} from "nsp-ds-tokens/scripts/lib/contrast.mjs";
+
+export { contrast, resolveColor, thresholdFor, derivePairs };
+
+// Brand-specific contrast exemptions (generated by create-nsp-project).
+// Keys match the checkContrast pair format: "fg.token" or "fg.token × bg.token".
+const BRAND_EXEMPT = {
+${brandExemptEntries}
+};
+
+export const CONTRAST_EXEMPT = { ...BASE_EXEMPT, ...BRAND_EXEMPT };
+
+export function checkContrast(merged) {
+  const results = [];
+  const failures = [];
+  for (const { fg, bg, mode } of derivePairs(merged)) {
+    const fgHex = resolveColor(merged, fg, mode);
+    const bgHex = resolveColor(merged, bg, mode);
+    if (!fgHex || !bgHex) continue;
+    const ratio = contrast(fgHex, bgHex);
+    const group = fg.split(".")[0];
+    const threshold = thresholdFor(group);
+    const pairKey = \`\${fg} × \${bg}\`;
+    let status;
+    if (CONTRAST_EXEMPT[fg] || CONTRAST_EXEMPT[pairKey]) status = "exempt";
+    else if (ratio < threshold) status = "FAIL";
+    else status = "ok";
+    const row = { fg, bg, mode, fgHex, bgHex, ratio, threshold, status };
+    results.push(row);
+    if (status === "FAIL") failures.push(row);
+  }
+  return { results, failures };
+}
+`,
     );
+
     write(
       "scripts/lib/origin.mjs",
       `export * from "nsp-ds-tokens/scripts/lib/origin.mjs";\n`,
     );
 
-    // 7. Token files
+    // 10. Token files
     const colorJson = { color: {} };
     colorJson.color[primaryKey] = buildColorTree(
       primaryScale.lightSteps,
@@ -491,6 +653,17 @@ export function loadMerged() {
     const th = Math.min(ts + 1, 12);
     const is_ = iconSel.step;
     const ih = Math.min(is_ + 1, 12);
+
+    // Per-state on-color tokens are generated when hover/active surfaces need a
+    // different foreground than the base surface (always the case when a bright
+    // identity color inverts to dark in the dark-mode hover step).
+    const hoverOnTokens = primaryHoverDiffers
+      ? {
+          "on-primary-hover": ct(onPrimaryHover.lightRef, onPrimaryHover.darkRef),
+          "on-primary-dark": ct(onPrimaryHover.lightRef, onPrimaryHover.darkRef),
+        }
+      : {};
+
     write("tokens/semantic/color.json", {
       surface: {
         "primary-xlight": ct(ps(3), ps(10)),
@@ -517,7 +690,8 @@ export function loadMerged() {
         "primary-xlight": ct(ps(3), ps(3)),
         "primary-hover": ct(ps(th), ps(12)),
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
-        "on-secondary": ct(onSecondaryRef, onSecondaryRef),
+        ...hoverOnTokens,
+        "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
         "on-tertiary": ct("{palette.tertiary.12}", "{palette.tertiary.12}"),
       },
       stroke: {
@@ -531,9 +705,13 @@ export function loadMerged() {
         primary: ct(ps(is_), ps(12)),
         "primary-light": ct(ps(8), ps(11)),
         "primary-hover": ct(ps(ih), ps(12)),
-        secondary: ct("{palette.secondary.11}", "{palette.secondary.12}"),
+        secondary: ct(
+          `{palette.secondary.${secondaryIconSel.step}}`,
+          "{palette.secondary.12}",
+        ),
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
-        "on-secondary": ct(onSecondaryRef, onSecondaryRef),
+        ...hoverOnTokens,
+        "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
         "on-tertiary": ct("{palette.tertiary.12}", "{palette.tertiary.12}"),
       },
       "emphasis-brand": {
@@ -546,7 +724,8 @@ export function loadMerged() {
       },
     });
 
-    // 8. CLAUDE.md
+    // 11. CLAUDE.md
+    const onPrimaryDir = onPrimary.lightHex === "#ffffff" ? "white" : "black";
     const colorLines = [
       `- Primary (step 9): \`${primaryScale.anchor}\``,
       ...(secondaryScale !== primaryScale
@@ -555,7 +734,12 @@ export function loadMerged() {
       ...(accentScale !== primaryScale && accentScale !== secondaryScale
         ? [`- Accent (step 9): \`${accentScale.anchor}\``]
         : []),
-      `- text.on-primary: \`${onPrimary.hex}\` (${onPrimary.ratio.toFixed(2)}:1 on primary.9)`,
+      `- text/icon.on-primary: ${onPrimaryDir} (${onPrimary.lightRatio.toFixed(2)}:1 on primary.9)`,
+      ...(primaryHoverDiffers
+        ? [
+            `- text/icon.on-primary-hover/dark: computed per mode (hover/active states differ in dark)`,
+          ]
+        : []),
     ].join("\n");
 
     write(
@@ -606,7 +790,7 @@ Outputs: \`dist/figma-variables.json\`, \`dist/figma-styles.json\`,
 
     console.log("  ✓ Token files written");
 
-    // 9. Build + gate
+    // 12. Build + gate
     console.log("\nRunning npm run build...");
     let buildOutput = "";
     let buildPassed = false;
@@ -641,7 +825,7 @@ Outputs: \`dist/figma-variables.json\`, \`dist/figma-styles.json\`,
           "  Adjust palette slot steps in tokens/semantic/color.json,",
         );
         console.error(
-          "  or add exemptions to scripts/lib/contrast.mjs (CONTRAST_EXEMPT).",
+          "  or add brand-specific exemptions to scripts/lib/contrast.mjs (BRAND_EXEMPT).",
         );
       } else {
         console.error(`\n✗ Build failed. Check output above.`);
