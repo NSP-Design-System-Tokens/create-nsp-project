@@ -8,12 +8,7 @@
 // Usage (non-interactive): npx github:asimonato/create-nsp-project <name> <primaryHex> [secondaryHex] [accentHex]
 
 import { createInterface } from "node:readline/promises";
-import {
-  mkdirSync,
-  writeFileSync,
-  copyFileSync,
-  existsSync,
-} from "node:fs";
+import { mkdirSync, writeFileSync, copyFileSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { execSync } from "node:child_process";
 import { oklch, formatHex, clampChroma, parse } from "culori";
@@ -74,12 +69,32 @@ function generateScale(anchorHex) {
   if (!base) throw new Error(`Cannot parse color: ${anchorHex}`);
 
   const LIGHT_L = [
-    0.985, 0.97, 0.94, 0.91, 0.87, 0.82, 0.74, 0.63,
-    base.l, base.l - 0.05, base.l - 0.12, base.l - 0.22,
+    0.985,
+    0.97,
+    0.94,
+    0.91,
+    0.87,
+    0.82,
+    0.74,
+    0.63,
+    base.l,
+    base.l - 0.05,
+    base.l - 0.12,
+    base.l - 0.22,
   ];
   const DARK_L = [
-    0.1, 0.14, 0.19, 0.24, 0.28, 0.32, 0.37, 0.4,
-    base.l, base.l + 0.06, base.l + 0.18, base.l + 0.32,
+    0.1,
+    0.14,
+    0.19,
+    0.24,
+    0.28,
+    0.32,
+    0.37,
+    0.4,
+    base.l,
+    base.l + 0.06,
+    base.l + 0.18,
+    base.l + 0.32,
   ];
 
   const mkStep = (l, c, h) =>
@@ -121,19 +136,44 @@ function pickOnColor(step9Hex) {
   const ratioWhite = contrast(WHITE, step9Hex);
   const ratioBlack = contrast(BLACK, step9Hex);
   if (ratioWhite >= 4.5)
-    return { lightRef: "{palette.neutral.0}", darkRef: "{palette.neutral.0}", hex: WHITE, ratio: ratioWhite, passed: true };
+    return {
+      lightRef: "{palette.neutral.0}",
+      darkRef: "{palette.neutral.0}",
+      hex: WHITE,
+      ratio: ratioWhite,
+      passed: true,
+    };
   if (ratioBlack >= 4.5)
-    return { lightRef: "{palette.neutral.12}", darkRef: "{palette.neutral.1}", hex: BLACK, ratio: ratioBlack, passed: true };
+    return {
+      lightRef: "{palette.neutral.12}",
+      darkRef: "{palette.neutral.1}",
+      hex: BLACK,
+      ratio: ratioBlack,
+      passed: true,
+    };
   if (ratioWhite >= ratioBlack)
-    return { lightRef: "{palette.neutral.0}", darkRef: "{palette.neutral.0}", hex: WHITE, ratio: ratioWhite, passed: false };
-  return { lightRef: "{palette.neutral.12}", darkRef: "{palette.neutral.1}", hex: BLACK, ratio: ratioBlack, passed: false };
+    return {
+      lightRef: "{palette.neutral.0}",
+      darkRef: "{palette.neutral.0}",
+      hex: WHITE,
+      ratio: ratioWhite,
+      passed: false,
+    };
+  return {
+    lightRef: "{palette.neutral.12}",
+    darkRef: "{palette.neutral.1}",
+    hex: BLACK,
+    ratio: ratioBlack,
+    passed: false,
+  };
 }
 
 function pickTextStep(lightSteps) {
   const WHITE = "#ffffff";
   for (const idx of [8, 9, 10, 11]) {
     const hex = lightSteps[idx];
-    if (contrast(hex, WHITE) >= 4.5) return { step: idx + 1, hex, passed: true };
+    if (contrast(hex, WHITE) >= 4.5)
+      return { step: idx + 1, hex, passed: true };
   }
   return { step: 12, hex: lightSteps[11], passed: false };
 }
@@ -142,7 +182,8 @@ function pickIconStep(lightSteps) {
   const WHITE = "#ffffff";
   for (const idx of [8, 9, 10, 11, 7]) {
     const hex = lightSteps[idx];
-    if (contrast(hex, WHITE) >= 3.0) return { step: idx + 1, hex, passed: true };
+    if (contrast(hex, WHITE) >= 3.0)
+      return { step: idx + 1, hex, passed: true };
   }
   return { step: 12, hex: lightSteps[11], passed: false };
 }
@@ -339,7 +380,8 @@ async function main() {
         "build:figma": "node scripts/build-figma.mjs",
         "build:css": "node scripts/build-css.mjs",
         "build:preview": "node scripts/build-preview.mjs",
-        build: "npm run validate && npm run build:figma && npm run build:css && npm run build:preview",
+        build:
+          "npm run validate && npm run build:figma && npm run build:css && npm run build:preview",
       },
       dependencies: {
         culori: "^4.0.1",
@@ -350,11 +392,15 @@ async function main() {
     write(".gitignore", "node_modules/\nbuild/\ndist/\n");
 
     // 4. npm install — downloads nsp-ds-tokens from GitHub
-    console.log(`\nRunning npm install (fetches nsp-ds-tokens ${LIB_VERSION} from GitHub)...`);
+    console.log(
+      `\nRunning npm install (fetches nsp-ds-tokens ${LIB_VERSION} from GitHub)...`,
+    );
     try {
       execSync("npm install", { cwd: dest, stdio: "inherit" });
     } catch {
-      console.error("✗ npm install failed — run it manually in the project directory.");
+      console.error(
+        "✗ npm install failed — run it manually in the project directory.",
+      );
       process.exit(1);
     }
 
@@ -454,7 +500,10 @@ export function loadMerged() {
         "primary-hover": ct(ps(10), ps(8)),
         secondary: ct("{palette.secondary.3}", "{palette.secondary.3}"),
         "secondary-hover": ct("{palette.secondary.4}", "{palette.secondary.4}"),
-        "secondary-active": ct("{palette.secondary.5}", "{palette.secondary.5}"),
+        "secondary-active": ct(
+          "{palette.secondary.5}",
+          "{palette.secondary.5}",
+        ),
         tertiary: ct("{palette.tertiary.3}", "{palette.tertiary.3}"),
         "tertiary-hover": ct("{palette.tertiary.4}", "{palette.tertiary.4}"),
         "tertiary-active": ct("{palette.tertiary.5}", "{palette.tertiary.5}"),
@@ -585,8 +634,12 @@ Outputs: \`dist/figma-variables.json\`, \`dist/figma-styles.json\`,
         .filter((l) => l.includes("contrast:"))
         .map((l) => l.trim());
       if (contrastLines.length > 0) {
-        console.error(`\n⚠ Build failed: ${contrastLines.length} contrast issue(s).`);
-        console.error("  Adjust palette slot steps in tokens/semantic/color.json,");
+        console.error(
+          `\n⚠ Build failed: ${contrastLines.length} contrast issue(s).`,
+        );
+        console.error(
+          "  Adjust palette slot steps in tokens/semantic/color.json,",
+        );
         console.error(
           "  or add exemptions to scripts/lib/contrast.mjs (CONTRAST_EXEMPT).",
         );
