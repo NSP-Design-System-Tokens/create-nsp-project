@@ -15,7 +15,7 @@ import { oklch, formatHex, clampChroma, parse } from "culori";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Bump LIB_VERSION when nsp-ds-tokens cuts a new release.
-const LIB_VERSION = "v0.3.2";
+const LIB_VERSION = "v0.3.3";
 const LIB_DEP = `github:asimonato/nsp-ds-tokens#${LIB_VERSION}`;
 const LIB_GITHUB_URL = "https://github.com/asimonato/nsp-ds-tokens";
 
