@@ -736,10 +736,10 @@ export function checkContrast(merged) {
       text: {
         // Core brand text
         title: ct(ps(ts), ps(12)),
-        // Primary family variants
+        // Primary family variants: base → hover → light → xlight (matches surface pattern)
+        "primary-hover": ct(ps(th), ps(12)),
         "primary-light": ct(ps(8), ps(8)),
         "primary-xlight": ct(ps(3), ps(3)),
-        "primary-hover": ct(ps(th), ps(12)),
         // On-color tokens (paired with brand surfaces)
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
         ...hoverOnTokens,
@@ -754,10 +754,10 @@ export function checkContrast(merged) {
         default: ct(ps(9), ps(8)),
       },
       icon: {
-        // Primary family
+        // Primary family: base → hover → light (matches surface pattern)
         primary: ct(ps(is_), ps(12)),
-        "primary-light": ct(ps(8), ps(11)),
         "primary-hover": ct(ps(ih), ps(12)),
+        "primary-light": ct(ps(8), ps(11)),
         // Secondary
         secondary: ct(
           `{palette.secondary.${secondaryIconSel.step}}`,
