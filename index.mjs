@@ -139,8 +139,8 @@ function buildColorTree(lightSteps, darkSteps, origin) {
 //
 // Refs use palette.neutral which carries Radix modes automatically:
 //   neutral.0  = color.white  (#ffffff, always)
-//   neutral.12 = mauve.12     (near-black in light, near-white in dark)
-//   neutral.1  = mauve.1      (near-white in light, near-black in dark)
+//   neutral.12 = gray.12     (near-black in light, near-white in dark)
+//   neutral.1  = gray.1      (near-white in light, near-black in dark)
 //
 // Mapping:
 //   light surface needs white → lightRef neutral.0,  darkRef neutral.12
@@ -168,11 +168,11 @@ function computeOnColor(lightSurfaceHex, darkSurfaceHex) {
 }
 
 // pickTextStep: first step (scanning 9→12) that achieves 4.5:1 on surface.card light.
-// Uses mauve.2 (#faf9fb) — the least favourable reading surface — not pure white.
+// Uses gray.2 (#f9f9f9) — the least favourable reading surface — not pure white.
 // White is ~3% more luminant; passing on white can fail 4.5:1 on tinted backgrounds.
 // When none pass, returns the step with the highest contrast (best available).
 function pickTextStep(lightSteps) {
-  const SURFACE_CARD = "#faf9fb"; // mauve.2 = surface.card/raised light
+  const SURFACE_CARD = "#f9f9f9"; // gray.2 = surface.card/raised light
   const candidates = [8, 9, 10, 11];
   let best = null;
   for (const idx of candidates) {
@@ -257,11 +257,11 @@ function brandSlot(hueRef, origin) {
   return slot;
 }
 
-function mauveSlot(origin) {
+function graySlot(origin) {
   const slot = {};
   for (let i = 1; i <= 12; i++)
-    slot[String(i)] = { $type: "color", $value: `{color.mauve.${i}}` };
-  slot.default = { $type: "color", $value: "{color.mauve.9}" };
+    slot[String(i)] = { $type: "color", $value: `{color.gray.${i}}` };
+  slot.default = { $type: "color", $value: "{color.gray.9}" };
   slot.$extensions = { nsp: { origin } };
   return slot;
 }
@@ -693,7 +693,7 @@ export function checkContrast(merged) {
           secondaryScale === primaryScale
             ? ghostSlot(secondaryRef, origin)
             : brandSlot(secondaryRef, origin),
-        tertiary: mauveSlot(origin),
+        tertiary: graySlot(origin),
         ...(hasAccent ? { accent: brandSlot(accentRef, origin) } : {}),
       },
     });
