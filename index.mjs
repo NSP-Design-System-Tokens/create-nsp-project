@@ -167,14 +167,17 @@ function computeOnColor(lightSurfaceHex, darkSurfaceHex) {
   };
 }
 
-// pickTextStep: first step (scanning 9→12) that achieves 4.5:1 on white.
+// pickTextStep: first step (scanning 9→12) that achieves 4.5:1 on surface.card light.
+// Uses mauve.2 (#faf9fb) — the least favourable reading surface — not pure white.
+// White is ~3% more luminant; passing on white can fail 4.5:1 on tinted backgrounds.
 // When none pass, returns the step with the highest contrast (best available).
 function pickTextStep(lightSteps) {
+  const SURFACE_CARD = "#faf9fb"; // mauve.2 = surface.card/raised light
   const candidates = [8, 9, 10, 11];
   let best = null;
   for (const idx of candidates) {
     const hex = lightSteps[idx];
-    const r = contrast(hex, "#ffffff");
+    const r = contrast(hex, SURFACE_CARD);
     if (r >= 4.5) return { step: idx + 1, hex, ratio: r, passed: true };
     if (!best || r > best.ratio) best = { idx, hex, ratio: r };
   }
