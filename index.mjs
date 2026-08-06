@@ -721,6 +721,7 @@ export function checkContrast(merged) {
         // Primary family: solid → interaction → lighter → lightest
         primary: ct(ps(9), ps(9)),
         "primary-hover": ct(ps(10), ps(8)),
+        "primary-active": ct(ps(11), ps(7)),
         "primary-light": ct(ps(8), ps(10)),
         "primary-xlight": ct(ps(3), ps(10)),
         // Secondary family (ghost/soft)
