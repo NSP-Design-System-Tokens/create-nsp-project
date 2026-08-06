@@ -417,6 +417,15 @@ async function main() {
       onPrimary.lightRef !== onPrimaryHover.lightRef ||
       onPrimary.darkRef !== onPrimaryHover.darkRef;
 
+    // Primary active surface (step 11 in light, step 7 in dark)
+    const onPrimaryActive = computeOnColor(
+      primaryScale.lightSteps[10],
+      primaryScale.darkSteps[6],
+    );
+    const primaryActiveDiffers =
+      onPrimary.lightRef !== onPrimaryActive.lightRef ||
+      onPrimary.darkRef !== onPrimaryActive.darkRef;
+
     // Secondary: surface.secondary = step 3 (same step in both modes)
     const onSecondary = computeOnColor(
       secondaryScale.lightSteps[2],
@@ -451,9 +460,21 @@ async function main() {
         onPrimaryHover,
       );
       console.log(
-        `  ⚠ Primary hover/active need different foreground in dark mode.\n` +
-          `    Generating text/icon.on-primary-hover and .on-primary-dark tokens.\n` +
-          `    Adding CONTRAST_EXEMPT for icon.on-primary × primary-hover/dark (REAL GAP).`,
+        `  ⚠ Primary hover state needs different foreground in dark mode.\n` +
+          `    Generating text/icon.on-primary-hover tokens.\n` +
+          `    Adding CONTRAST_EXEMPT for icon.on-primary × primary-hover (REAL GAP).`,
+      );
+    }
+    if (primaryActiveDiffers) {
+      logOnColor(
+        "on-primary-active (step11L/step7D)",
+        `${primaryScale.lightSteps[10]}/${primaryScale.darkSteps[6]}`,
+        onPrimaryActive,
+      );
+      console.log(
+        `  ⚠ Primary active state needs different foreground in dark mode.\n` +
+          `    Generating text/icon.on-primary-active tokens.\n` +
+          `    Adding CONTRAST_EXEMPT for icon.on-primary × primary-active (REAL GAP).`,
       );
     }
 
@@ -498,11 +519,21 @@ async function main() {
     if (primaryHoverDiffers) {
       const hoverDarkHex = primaryScale.darkSteps[7];
       const msg =
-        `REAL GAP — dark mode only: surface.primary-hover/dark = step 8 dark` +
-        ` (${hoverDarkHex}), requires ${onPrimaryHover.darkHex} text;` +
+        `REAL GAP — dark mode only: surface.primary-hover = step 10 light / step 8 dark` +
+        ` (${primaryScale.lightSteps[9]}/${hoverDarkHex}), requires ${onPrimaryHover.darkHex} text;` +
         ` on-primary uses ${onPrimary.darkRef.replace(/[{}]/g, "")} for the base surface.` +
-        ` Use text/icon.on-primary-hover for hover/pressed states.`;
+        ` Use text/icon.on-primary-hover for hover states.`;
       BRAND_EXEMPT["icon.on-primary × surface.primary-hover"] = msg;
+    }
+
+    if (primaryActiveDiffers) {
+      const activeDarkHex = primaryScale.darkSteps[6];
+      const msg =
+        `REAL GAP — dark mode only: surface.primary-active = step 11 light / step 7 dark` +
+        ` (${primaryScale.lightSteps[10]}/${activeDarkHex}), requires ${onPrimaryActive.darkHex} text;` +
+        ` on-primary uses ${onPrimary.darkRef.replace(/[{}]/g, "")} for the base surface.` +
+        ` Use text/icon.on-primary-active for pressed/active states.`;
+      BRAND_EXEMPT["icon.on-primary × surface.primary-active"] = msg;
     }
 
     if (!secondaryIconSel.passed && secondaryScale !== primaryScale) {
@@ -706,12 +737,21 @@ export function checkContrast(merged) {
 
     // Per-state on-color tokens are generated when hover/active surfaces need a
     // different foreground than the base surface (always the case when a bright
-    // identity color inverts to dark in the dark-mode hover step).
+    // identity color inverts to dark in the dark-mode step).
     const hoverOnTokens = primaryHoverDiffers
       ? {
           "on-primary-hover": ct(
             onPrimaryHover.lightRef,
             onPrimaryHover.darkRef,
+          ),
+        }
+      : {};
+
+    const activeOnTokens = primaryActiveDiffers
+      ? {
+          "on-primary-active": ct(
+            onPrimaryActive.lightRef,
+            onPrimaryActive.darkRef,
           ),
         }
       : {};
@@ -748,6 +788,7 @@ export function checkContrast(merged) {
         // On-color tokens (paired with brand surfaces)
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
         ...hoverOnTokens,
+        ...activeOnTokens,
         "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
         "on-tertiary": ct("{palette.tertiary.12}", "{palette.tertiary.12}"),
       },
@@ -771,6 +812,7 @@ export function checkContrast(merged) {
         // On-color tokens (paired with brand surfaces)
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
         ...hoverOnTokens,
+        ...activeOnTokens,
         "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
         "on-tertiary": ct("{palette.tertiary.12}", "{palette.tertiary.12}"),
       },
@@ -808,7 +850,12 @@ export function checkContrast(merged) {
       `- text/icon.on-primary: ${onPrimaryDir} (${onPrimary.lightRatio.toFixed(2)}:1 on primary.9)`,
       ...(primaryHoverDiffers
         ? [
-            `- text/icon.on-primary-hover/dark: computed per mode (hover/active states differ in dark)`,
+            `- text/icon.on-primary-hover: computed per mode (hover surface needs different foreground in dark)`,
+          ]
+        : []),
+      ...(primaryActiveDiffers
+        ? [
+            `- text/icon.on-primary-active: computed per mode (active/pressed surface needs different foreground in dark)`,
           ]
         : []),
     ].join("\n");
