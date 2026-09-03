@@ -1,6 +1,6 @@
 {
   "name": "create-nsp-project",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Scaffold a brand token project on top of nsp-ds-tokens.",
   "bin": {

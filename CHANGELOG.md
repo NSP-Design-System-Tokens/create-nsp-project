@@ -7,12 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Changed (BREAKING)
-
-- `icon.primary` is now fixed at step 11 in both light and dark modes.
-  Previously used `pickIconStep` which selected the minimum step ≥3:1 on
-  white. Aligns icon.primary with text.title/text.primary: brand coherence
-  over WCAG escalation. **Breaking:** same re-scaffold impact as text.title.
+### Breaking Changes
 
 - `text.title` is now fixed at step 11 in both light and dark modes.
   Previously used `pickTextStep` which could escalate to step 12 for very
@@ -23,17 +18,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   **Breaking:** generated projects that relied on step-12 escalation will
   produce different token values after re-scaffolding.
 
+- `icon.primary` is now fixed at step 11 in both light and dark modes.
+  Previously used `pickIconStep` which selected the minimum step ≥3:1 on
+  white. Aligns `icon.primary` with `text.title`/`text.primary`: brand
+  coherence over WCAG escalation. **Breaking:** same re-scaffold impact as
+  `text.title`.
+
+### Changed
+
+- `LIB_VERSION` bumped `v0.3.7` → `v0.4.0`. Generated projects will install
+  `nsp-ds-tokens#v0.4.0` from GitHub on `npm install`.
+- `package.json "version"` aligned to `0.4.0` (was stale `1.0.0` — not read by
+  `npx github:` consumers, corrected to avoid future confusion).
+
 ### Added
-
-- `CLAUDE.md`: reference to `docs/DESIGN-PRINCIPLES.md` in nsp-ds-tokens for the
-  brand-vs-accessibility rubric (step 11 policy).
-
-- `icon.primary-xlight` semantic token — `{palette.primary.3}` both light and dark modes.
-  Parity with `text.primary-xlight`. Brand-tinted decorative icon variant; exempt from
-  contrast gate (arbitrary background, consumer's responsibility).
 
 - `text.primary` semantic token — step 11 in both light and dark modes.
   Fills the role gap between `text.title` (brand heading) and
   `text.primary-hover` (interaction state): provides a standalone brand
   primary text role usable outside of heading contexts.
   Resolves the orphan exemption `text.primary × surface.floating`.
+
+- `icon.primary-xlight` semantic token — `{palette.primary.3}` both light and dark
+  modes. Parity with `text.primary-xlight`. Brand-tinted decorative icon variant;
+  exempt from contrast gate (arbitrary background, consumer's responsibility).
+
+- `CLAUDE.md`: reference to `docs/DESIGN-PRINCIPLES.md` in `nsp-ds-tokens` for the
+  brand-vs-accessibility rubric (step 11 policy).
