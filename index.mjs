@@ -779,8 +779,8 @@ export function checkContrast(merged) {
         "tertiary-darker": ct("{palette.neutral.12}", "{palette.neutral.11}"),
       },
       text: {
-        // Core brand text
-        title: ct(ps(ts), ps(12)),
+        // Core brand text — step 11 both modes (brand coherence over WCAG escalation)
+        title: ct(ps(11), ps(11)),
         primary: ct(ps(11), ps(11)),
         // Primary family variants: base → hover → light → xlight (matches surface pattern)
         "primary-hover": ct(ps(th), ps(12)),
