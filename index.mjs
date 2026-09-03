@@ -802,7 +802,8 @@ export function checkContrast(merged) {
       },
       icon: {
         // Primary family: base → hover → light (matches surface pattern)
-        primary: ct(ps(is_), ps(12)),
+        // step 11 both modes — consistent with text.title/text.primary policy
+        primary: ct(ps(11), ps(11)),
         "primary-hover": ct(ps(ih), ps(12)),
         "primary-light": ct(ps(8), ps(11)),
         // Secondary

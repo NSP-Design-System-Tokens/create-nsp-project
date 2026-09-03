@@ -9,6 +9,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed (BREAKING)
 
+- `icon.primary` is now fixed at step 11 in both light and dark modes.
+  Previously used `pickIconStep` which selected the minimum step ≥3:1 on
+  white. Aligns icon.primary with text.title/text.primary: brand coherence
+  over WCAG escalation. **Breaking:** same re-scaffold impact as text.title.
+
 - `text.title` is now fixed at step 11 in both light and dark modes.
   Previously used `pickTextStep` which could escalate to step 12 for very
   light brand palettes to meet WCAG 4.5:1. The new policy follows the
