@@ -25,6 +25,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `icon.primary-xlight` semantic token — `{palette.primary.3}` both light and dark modes.
+  Parity with `text.primary-xlight`. Brand-tinted decorative icon variant; exempt from
+  contrast gate (arbitrary background, consumer's responsibility).
+
 - `text.primary` semantic token — step 11 in both light and dark modes.
   Fills the role gap between `text.title` (brand heading) and
   `text.primary-hover` (interaction state): provides a standalone brand

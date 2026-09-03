@@ -806,6 +806,7 @@ export function checkContrast(merged) {
         primary: ct(ps(11), ps(11)),
         "primary-hover": ct(ps(ih), ps(12)),
         "primary-light": ct(ps(8), ps(11)),
+        "primary-xlight": ct(ps(3), ps(3)),
         // Secondary
         secondary: ct(
           `{palette.secondary.${secondaryIconSel.step}}`,
