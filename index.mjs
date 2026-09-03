@@ -781,6 +781,7 @@ export function checkContrast(merged) {
       text: {
         // Core brand text
         title: ct(ps(ts), ps(12)),
+        primary: ct(ps(11), ps(11)),
         // Primary family variants: base → hover → light → xlight (matches surface pattern)
         "primary-hover": ct(ps(th), ps(12)),
         "primary-light": ct(ps(8), ps(8)),
