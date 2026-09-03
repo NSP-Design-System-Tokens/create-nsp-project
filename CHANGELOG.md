@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] — 2026-09-03
+
 ### Breaking Changes
 
 - `text.title` is now fixed at step 11 in both light and dark modes.
