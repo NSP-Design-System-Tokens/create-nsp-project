@@ -25,6 +25,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `CLAUDE.md`: reference to `docs/DESIGN-PRINCIPLES.md` in nsp-ds-tokens for the
+  brand-vs-accessibility rubric (step 11 policy).
+
 - `icon.primary-xlight` semantic token — `{palette.primary.3}` both light and dark modes.
   Parity with `text.primary-xlight`. Brand-tinted decorative icon variant; exempt from
   contrast gate (arbitrary background, consumer's responsibility).
