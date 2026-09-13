@@ -15,7 +15,7 @@ import { oklch, formatHex, clampChroma, parse } from "culori";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Bump LIB_VERSION when nsp-ds-tokens cuts a new release.
-const LIB_VERSION = "v0.4.2";
+const LIB_VERSION = "v0.5.0";
 const LIB_DEP = `github:NSP-Design-System-Tokens/nsp-ds-tokens#${LIB_VERSION}`;
 const LIB_GITHUB_URL =
   "https://github.com/NSP-Design-System-Tokens/nsp-ds-tokens";
@@ -257,15 +257,6 @@ function brandSlot(hueRef, origin) {
   return slot;
 }
 
-function graySlot(origin) {
-  const slot = {};
-  for (let i = 1; i <= 12; i++)
-    slot[String(i)] = { $type: "color", $value: `{color.gray.${i}}` };
-  slot.default = { $type: "color", $value: "{color.gray.9}" };
-  slot.$extensions = { nsp: { origin } };
-  return slot;
-}
-
 // ghostSlot: used when secondary is auto-derived from the primary scale.
 // Unlike brandSlot (.default=step9), ghost secondary uses soft/tint steps:
 //   .default = step 3  (ghost surface background)
@@ -375,7 +366,7 @@ async function main() {
     const primaryRef = `color.${primaryKey}`;
     const secondaryRef = `color.${secondaryKey}`;
     const accentRef = hasAccent ? `color.${accentKey}` : null;
-    const origin = `brand-${name}`;
+    const origin = "brand";
 
     console.log(`  ✓ ${primaryRef}: step 9 = ${primaryScale.anchor}`);
     if (secondaryScale !== primaryScale)
@@ -724,7 +715,6 @@ export function checkContrast(merged) {
           secondaryScale === primaryScale
             ? ghostSlot(secondaryRef, origin)
             : brandSlot(secondaryRef, origin),
-        tertiary: graySlot(origin),
         ...(hasAccent ? { accent: brandSlot(accentRef, origin) } : {}),
       },
     });
@@ -775,30 +765,22 @@ export function checkContrast(merged) {
         tertiary: ct("{palette.tertiary.3}", "{palette.tertiary.3}"),
         "tertiary-hover": ct("{palette.tertiary.4}", "{palette.tertiary.4}"),
         "tertiary-active": ct("{palette.tertiary.5}", "{palette.tertiary.5}"),
-        "tertiary-dark": ct("{palette.neutral.11}", "{palette.neutral.12}"),
-        "tertiary-darker": ct("{palette.neutral.12}", "{palette.neutral.11}"),
       },
       text: {
         // Core brand text — step 11 both modes (brand coherence over WCAG escalation)
         title: ct(ps(11), ps(11)),
         primary: ct(ps(11), ps(11)),
-        // Primary family variants: base → hover → light → xlight (matches surface pattern)
+        // Primary family variants: base → hover
         "primary-hover": ct(ps(th), ps(12)),
-        "primary-light": ct(ps(8), ps(8)),
-        "primary-xlight": ct(ps(3), ps(3)),
         // On-color tokens (paired with brand surfaces)
         "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
         ...hoverOnTokens,
         ...activeOnTokens,
         "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
-        "on-tertiary": ct("{palette.tertiary.12}", "{palette.tertiary.12}"),
       },
       stroke: {
         primary: ct(ps(is_), ps(11)),
         hover: ct(ps(ih), ps(11)),
-      },
-      logo: {
-        default: ct(ps(9), ps(8)),
       },
       icon: {
         // Primary family: base → hover → light (matches surface pattern)
@@ -806,7 +788,6 @@ export function checkContrast(merged) {
         primary: ct(ps(11), ps(11)),
         "primary-hover": ct(ps(ih), ps(12)),
         "primary-light": ct(ps(8), ps(11)),
-        "primary-xlight": ct(ps(3), ps(3)),
         // Secondary
         secondary: ct(
           `{palette.secondary.${secondaryIconSel.step}}`,
@@ -817,11 +798,6 @@ export function checkContrast(merged) {
         ...hoverOnTokens,
         ...activeOnTokens,
         "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
-        "on-tertiary": ct("{palette.tertiary.12}", "{palette.tertiary.12}"),
-      },
-      "emphasis-brand": {
-        default: ct(ps(8), ps(8)),
-        dark: ct(ps(10), ps(10)),
       },
       ...(hasAccent
         ? {
@@ -880,7 +856,7 @@ This repo adds only what is ${name}-specific.
 \`\`\`
 tokens/
   core/color.json     ← ${name} brand color scale (12 steps, light + dark)
-  brand/${name}.json  ← palette slot aliases: primary, secondary, tertiary${hasAccent ? ", accent" : ""}
+  brand/${name}.json  ← palette slot aliases: primary, secondary${hasAccent ? ", accent" : ""} (tertiary inherited from base)
   semantic/color.json ← brand semantic roles: surface.primary, text.on-primary, …
 \`\`\`
 
