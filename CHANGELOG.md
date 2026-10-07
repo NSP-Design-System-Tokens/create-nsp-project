@@ -14,6 +14,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   This is the canonical Opzione A behavior from `generate-scale.mjs`.
   **Breaking:** re-scaffolded projects will produce different on-color token
   values (refs and hex). No real brand projects exist yet.
+- Role names renamed to Option A convention. `surface.secondary` →
+  `surface.secondary-subtle`, `surface.tertiary` → `surface.tertiary-subtle`,
+  `text.on-secondary` → `text.on-secondary-subtle`,
+  `icon.on-secondary` → `icon.on-secondary-subtle` (and hover/active variants).
+  Secondary roles now gated on `hasSecondary` (omitted when secondary = primary).
 
 ### Changed
 
@@ -24,10 +29,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   depend on it via `nsp-ds-tokens`.
 - `computeOnColor(lightHex, darkHex)` call sites replaced by
   `computeOnColorPair(lightHex, darkHex)` from the canonical API.
+- Inline role construction replaced by vendorized `expandRoles()` from
+  `nsp-ds-tokens/scripts/lib/generate-roles.mjs`. The CLI is now a consumer
+  of the canonical role expander.
 
 ### Added
 
 - `scripts/sync-generate-scale.mjs` — sync script with SHA-256 self-check.
+- `scripts/sync-generate-roles.mjs` — sync script for the role expander,
+  same pattern as `sync-generate-scale.mjs`.
   Vendorizes the canonical generator into `index.mjs` between `@generated`
   markers. Run whenever `generate-scale.mjs` changes in `nsp-ds-tokens`.
 

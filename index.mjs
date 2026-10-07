@@ -403,6 +403,202 @@ function graySlot(origin) {
 }
 // @generated-end:generate-scale
 
+// @generated-start:generate-roles
+// Declarative brand role map + DTCG expander — Option A rename.
+// Source of truth for brand-generated semantic color roles.
+// Extracted from create-nsp-project/index.mjs:918-982.
+
+const ct = (light, dark) => ({
+  $type: "color",
+  $value: light,
+  $extensions: { "com.figma.modes": { light, dark } },
+});
+
+const ref = (slot, step) => `{palette.${slot}.${step}}`;
+
+// ── Role map ────────────────────────────────────────────────────────────────
+// name → { slot, step | light/dark [, gate] }
+//   step:       same step both modes (symmetric).
+//   light/dark: per-mode steps.
+//   gate:       emit only when that palette is present.
+//
+// Dynamic roles (on-color refs, computed steps) are not in the map —
+// they depend on contrast analysis at generation time.
+
+const ROLE_MAP = Object.freeze({
+  surface: {
+    primary: { slot: "primary", light: 9, dark: 9 },
+    "primary-hover": { slot: "primary", light: 10, dark: 8 },
+    "primary-active": { slot: "primary", light: 11, dark: 7 },
+    "primary-light": { slot: "primary", light: 8, dark: 10 },
+    "primary-xlight": { slot: "primary", light: 3, dark: 10 },
+    "secondary-subtle": { slot: "secondary", step: 3, gate: "secondary" },
+    "secondary-subtle-hover": { slot: "secondary", step: 4, gate: "secondary" },
+    "secondary-subtle-active": {
+      slot: "secondary",
+      step: 5,
+      gate: "secondary",
+    },
+    "tertiary-subtle": { slot: "tertiary", step: 3 },
+    "tertiary-subtle-hover": { slot: "tertiary", step: 4 },
+    "tertiary-subtle-active": { slot: "tertiary", step: 5 },
+  },
+  text: {
+    title: { slot: "primary", step: 11 },
+    primary: { slot: "primary", step: 11 },
+  },
+  icon: {
+    primary: { slot: "primary", step: 11 },
+    "primary-light": { slot: "primary", light: 8, dark: 11 },
+  },
+  emphasis: {
+    default: {
+      light: "{palette.accent.default}",
+      dark: "{palette.accent.subtle}",
+      gate: "accent",
+    },
+    subtle: {
+      light: "{palette.accent.2}",
+      dark: "{palette.accent.4}",
+      gate: "accent",
+    },
+  },
+});
+
+/**
+ * @param {Object} opts
+ * @param {{ lightRef: string, darkRef: string }} opts.onPrimary
+ * @param {{ lightRef: string, darkRef: string }|null} [opts.onPrimaryHover]
+ * @param {{ lightRef: string, darkRef: string }|null} [opts.onPrimaryActive]
+ * @param {{ lightRef: string, darkRef: string }} opts.onSecondary
+ * @param {number} opts.textStep
+ * @param {number} opts.iconStep
+ * @param {number} opts.secondaryIconStep
+ * @param {boolean} opts.hasSecondary
+ * @param {boolean} opts.hasAccent
+ * @returns {Object} DTCG token tree for brand semantic/color.json
+ */
+function expandRoles({
+  onPrimary,
+  onPrimaryHover = null,
+  onPrimaryActive = null,
+  onSecondary,
+  textStep,
+  iconStep,
+  secondaryIconStep,
+  hasSecondary,
+  hasAccent,
+}) {
+  const textHoverStep = Math.min(textStep + 1, 12);
+  const iconHoverStep = Math.min(iconStep + 1, 12);
+
+  const m = (group, name) => {
+    const d = ROLE_MAP[group][name];
+    if (d.slot)
+      return ct(ref(d.slot, d.step ?? d.light), ref(d.slot, d.step ?? d.dark));
+    return ct(d.light, d.dark);
+  };
+
+  const surface = {
+    primary: m("surface", "primary"),
+    "primary-hover": m("surface", "primary-hover"),
+    "primary-active": m("surface", "primary-active"),
+    "primary-light": m("surface", "primary-light"),
+    "primary-xlight": m("surface", "primary-xlight"),
+    ...(hasSecondary
+      ? {
+          "secondary-subtle": m("surface", "secondary-subtle"),
+          "secondary-subtle-hover": m("surface", "secondary-subtle-hover"),
+          "secondary-subtle-active": m("surface", "secondary-subtle-active"),
+        }
+      : {}),
+    "tertiary-subtle": m("surface", "tertiary-subtle"),
+    "tertiary-subtle-hover": m("surface", "tertiary-subtle-hover"),
+    "tertiary-subtle-active": m("surface", "tertiary-subtle-active"),
+  };
+
+  const text = {
+    title: m("text", "title"),
+    primary: m("text", "primary"),
+    "primary-hover": ct(ref("primary", textHoverStep), ref("primary", 12)),
+    "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
+    ...(onPrimaryHover
+      ? {
+          "on-primary-hover": ct(
+            onPrimaryHover.lightRef,
+            onPrimaryHover.darkRef,
+          ),
+        }
+      : {}),
+    ...(onPrimaryActive
+      ? {
+          "on-primary-active": ct(
+            onPrimaryActive.lightRef,
+            onPrimaryActive.darkRef,
+          ),
+        }
+      : {}),
+    ...(hasSecondary
+      ? {
+          "on-secondary-subtle": ct(onSecondary.lightRef, onSecondary.darkRef),
+        }
+      : {}),
+  };
+
+  const stroke = {
+    primary: ct(ref("primary", iconStep), ref("primary", 11)),
+    hover: ct(ref("primary", iconHoverStep), ref("primary", 11)),
+  };
+
+  const icon = {
+    primary: m("icon", "primary"),
+    "primary-hover": ct(ref("primary", iconHoverStep), ref("primary", 12)),
+    "primary-light": m("icon", "primary-light"),
+    ...(hasSecondary
+      ? {
+          secondary: ct(
+            ref("secondary", secondaryIconStep),
+            ref("secondary", 12),
+          ),
+        }
+      : {}),
+    "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
+    ...(onPrimaryHover
+      ? {
+          "on-primary-hover": ct(
+            onPrimaryHover.lightRef,
+            onPrimaryHover.darkRef,
+          ),
+        }
+      : {}),
+    ...(onPrimaryActive
+      ? {
+          "on-primary-active": ct(
+            onPrimaryActive.lightRef,
+            onPrimaryActive.darkRef,
+          ),
+        }
+      : {}),
+    ...(hasSecondary
+      ? {
+          "on-secondary-subtle": ct(onSecondary.lightRef, onSecondary.darkRef),
+        }
+      : {}),
+  };
+
+  const tree = { surface, text, stroke, icon };
+
+  if (hasAccent) {
+    tree.emphasis = {
+      default: m("emphasis", "default"),
+      subtle: m("emphasis", "subtle"),
+    };
+  }
+
+  return tree;
+}
+// @generated-end:generate-roles
+
 // ── readline helpers ──────────────────────────────────────────────────────────
 
 async function prompt(rl, question, validate) {
@@ -436,14 +632,6 @@ function validateRequiredHex(v) {
   if (!v) return "Color hex is required";
   return validateHex(v);
 }
-
-// ── token builders ────────────────────────────────────────────────────────────
-
-const ct = (light, dark) => ({
-  $type: "color",
-  $value: light,
-  $extensions: { "com.figma.modes": { light, dark } },
-});
 
 // ── main ──────────────────────────────────────────────────────────────────────
 
@@ -552,8 +740,8 @@ async function main() {
     //
     // Primary: surface.primary = step 9 (both modes, same anchor hex).
     //          surface.primary-hover/dark = step 10 light / step 8 dark.
-    // Secondary: surface.secondary = step 3 (same step in both modes).
-    //            surface.secondary-hover = step 4, secondary-active = step 5.
+    // Secondary: surface.secondary-subtle = step 3 (same step in both modes).
+    //            secondary-subtle-hover = step 4, secondary-subtle-active = step 5.
     //
     // Steps are evaluated independently per mode so that a surface that inverts
     // from bright (light) to dark (dark) gets the correct foreground in each.
@@ -586,7 +774,7 @@ async function main() {
       onPrimary.lightRef !== onPrimaryActive.lightRef ||
       onPrimary.darkRef !== onPrimaryActive.darkRef;
 
-    // Secondary: surface.secondary = step 3 (same step in both modes)
+    // Secondary: surface.secondary-subtle = step 3 (same step in both modes)
     const onSecondary = computeOnColorPair(
       secondaryScale.lightSteps[2],
       secondaryScale.darkSteps[2],
@@ -888,98 +1076,22 @@ export function checkContrast(merged) {
       },
     });
 
-    const ps = (n) => `{palette.primary.${n}}`;
-    const ts = textSel.step;
-    const th = Math.min(ts + 1, 12);
-    const is_ = iconSel.step;
-    const ih = Math.min(is_ + 1, 12);
+    const hasSecondary = secondaryScale !== primaryScale;
 
-    // Per-state on-color tokens are generated when hover/active surfaces need a
-    // different foreground than the base surface (always the case when a bright
-    // identity color inverts to dark in the dark-mode step).
-    const hoverOnTokens = primaryHoverDiffers
-      ? {
-          "on-primary-hover": ct(
-            onPrimaryHover.lightRef,
-            onPrimaryHover.darkRef,
-          ),
-        }
-      : {};
-
-    const activeOnTokens = primaryActiveDiffers
-      ? {
-          "on-primary-active": ct(
-            onPrimaryActive.lightRef,
-            onPrimaryActive.darkRef,
-          ),
-        }
-      : {};
-
-    write("tokens/semantic/color.json", {
-      surface: {
-        // Primary family: solid → interaction → lighter → lightest
-        primary: ct(ps(9), ps(9)),
-        "primary-hover": ct(ps(10), ps(8)),
-        "primary-active": ct(ps(11), ps(7)),
-        "primary-light": ct(ps(8), ps(10)),
-        "primary-xlight": ct(ps(3), ps(10)),
-        // Secondary family (ghost/soft)
-        secondary: ct("{palette.secondary.3}", "{palette.secondary.3}"),
-        "secondary-hover": ct("{palette.secondary.4}", "{palette.secondary.4}"),
-        "secondary-active": ct(
-          "{palette.secondary.5}",
-          "{palette.secondary.5}",
-        ),
-        // Tertiary family (neutral accent)
-        tertiary: ct("{palette.tertiary.3}", "{palette.tertiary.3}"),
-        "tertiary-hover": ct("{palette.tertiary.4}", "{palette.tertiary.4}"),
-        "tertiary-active": ct("{palette.tertiary.5}", "{palette.tertiary.5}"),
-      },
-      text: {
-        // Core brand text — step 11 both modes (brand coherence over WCAG escalation)
-        title: ct(ps(11), ps(11)),
-        primary: ct(ps(11), ps(11)),
-        // Primary family variants: base → hover
-        "primary-hover": ct(ps(th), ps(12)),
-        // On-color tokens (paired with brand surfaces)
-        "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
-        ...hoverOnTokens,
-        ...activeOnTokens,
-        "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
-      },
-      stroke: {
-        primary: ct(ps(is_), ps(11)),
-        hover: ct(ps(ih), ps(11)),
-      },
-      icon: {
-        // Primary family: base → hover → light (matches surface pattern)
-        // step 11 both modes — consistent with text.title/text.primary policy
-        primary: ct(ps(11), ps(11)),
-        "primary-hover": ct(ps(ih), ps(12)),
-        "primary-light": ct(ps(8), ps(11)),
-        // Secondary
-        secondary: ct(
-          `{palette.secondary.${secondaryIconSel.step}}`,
-          "{palette.secondary.12}",
-        ),
-        // On-color tokens (paired with brand surfaces)
-        "on-primary": ct(onPrimary.lightRef, onPrimary.darkRef),
-        ...hoverOnTokens,
-        ...activeOnTokens,
-        "on-secondary": ct(onSecondary.lightRef, onSecondary.darkRef),
-      },
-      ...(hasAccent
-        ? {
-            emphasis: {
-              default: ct(
-                "{palette.accent.default}",
-                "{palette.accent.subtle}",
-              ),
-              subtle: ct("{palette.accent.2}", "{palette.accent.4}"),
-            },
-          }
-        : {}),
-    });
+    write(
+      "tokens/semantic/color.json",
+      expandRoles({
+        onPrimary,
+        onPrimaryHover: primaryHoverDiffers ? onPrimaryHover : null,
+        onPrimaryActive: primaryActiveDiffers ? onPrimaryActive : null,
+        onSecondary,
+        textStep: textSel.step,
+        iconStep: iconSel.step,
+        secondaryIconStep: secondaryIconSel.step,
+        hasSecondary,
+        hasAccent,
+      }),
+    );
 
     // 11. CLAUDE.md
     const onPrimaryDir = onPrimary.lightHex === "#ffffff" ? "white" : "black";
