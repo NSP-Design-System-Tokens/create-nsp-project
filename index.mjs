@@ -11,7 +11,6 @@ import { createInterface } from "node:readline/promises";
 import { mkdirSync, writeFileSync, copyFileSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { execSync } from "node:child_process";
-import { oklch, formatHex, clampChroma, parse } from "culori";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Bump LIB_VERSION when nsp-ds-tokens cuts a new release.
@@ -20,22 +19,154 @@ const LIB_DEP = `github:NSP-Design-System-Tokens/nsp-ds-tokens#${LIB_VERSION}`;
 const LIB_GITHUB_URL =
   "https://github.com/NSP-Design-System-Tokens/nsp-ds-tokens";
 
-// ── Inline contrast ratio ─────────────────────────────────────────────────────
-// Inlined so this tool has no dependency on nsp-ds-tokens being installed locally.
+// @generated-start:generate-scale
+// Canonical OKLCH scale generator. ESM, zero external dependencies.
+// Hand-rolled OKLCH engine with binary-search gamut clamping.
+// computeOnColor: Opzione A corretta — real neutral grays, dark-mode fallback.
 
-function toRGBA(value) {
-  const v = String(value).trim();
-  if (v.startsWith("oklch"))
-    return toRGBA(formatHex(clampChroma(oklch(v), "oklch")));
-  const c = parse(v);
-  if (!c) throw new Error(`cannot parse color: ${value}`);
-  return { r: c.r ?? 0, g: c.g ?? 0, b: c.b ?? 0, a: c.alpha ?? 1 };
+// ── Hex parse/format ─────────────────────────────────────────────────────────
+
+function parseHex(hex) {
+  const h = hex.replace(/^#/, "");
+  let r,
+    g,
+    b,
+    a = 1;
+  if (h.length === 3 || h.length === 4) {
+    r = parseInt(h[0] + h[0], 16) / 255;
+    g = parseInt(h[1] + h[1], 16) / 255;
+    b = parseInt(h[2] + h[2], 16) / 255;
+    if (h.length === 4) a = parseInt(h[3] + h[3], 16) / 255;
+  } else if (h.length === 6 || h.length === 8) {
+    r = parseInt(h.slice(0, 2), 16) / 255;
+    g = parseInt(h.slice(2, 4), 16) / 255;
+    b = parseInt(h.slice(4, 6), 16) / 255;
+    if (h.length === 8) a = parseInt(h.slice(6, 8), 16) / 255;
+  } else {
+    throw new Error(`Invalid hex: ${hex}`);
+  }
+  return { r, g, b, a };
 }
 
+function toHex(r, g, b) {
+  const cl = (v) => Math.max(0, Math.min(1, v));
+  const byte = (v) =>
+    Math.round(cl(v) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${byte(r)}${byte(g)}${byte(b)}`;
+}
+
+function normalizeHex(hex) {
+  const { r, g, b } = parseHex(hex);
+  return toHex(r, g, b);
+}
+
+// ── sRGB gamma ───────────────────────────────────────────────────────────────
+
+function linearize(c) {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function gammaEncode(c) {
+  return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+// ── OKLab ↔ linear sRGB ─────────────────────────────────────────────────────
+
+function linearRGBtoOKLab(r, g, b) {
+  const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+  const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+  const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+  const l_ = Math.cbrt(l);
+  const m_ = Math.cbrt(m);
+  const s_ = Math.cbrt(s);
+  return {
+    L: 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_,
+    a: 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_,
+    b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_,
+  };
+}
+
+function oklabToLinearRGB(L, a, b) {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.291485548 * b;
+  const l = l_ * l_ * l_;
+  const m = m_ * m_ * m_;
+  const s = s_ * s_ * s_;
+  return {
+    r: 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    g: -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    b: -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  };
+}
+
+// ── OKLCH ↔ OKLab ────────────────────────────────────────────────────────────
+
+function oklchToOKLab(l, c, h) {
+  const hRad = (h * Math.PI) / 180;
+  return { L: l, a: c * Math.cos(hRad), b: c * Math.sin(hRad) };
+}
+
+function oklabToOKLCH(L, a, b) {
+  const C = Math.sqrt(a * a + b * b);
+  let h = (Math.atan2(b, a) * 180) / Math.PI;
+  if (h < 0) h += 360;
+  return { l: L, c: C, h };
+}
+
+// ── Conversions ──────────────────────────────────────────────────────────────
+
+function hexToOKLCH(hex) {
+  const { r, g, b } = parseHex(hex);
+  const lab = linearRGBtoOKLab(linearize(r), linearize(g), linearize(b));
+  return oklabToOKLCH(lab.L, lab.a, lab.b);
+}
+
+function oklchToLinearRGB(l, c, h) {
+  const { L, a, b } = oklchToOKLab(l, c, h);
+  return oklabToLinearRGB(L, a, b);
+}
+
+function inGamut(r, g, b) {
+  const E = 1e-6;
+  return (
+    r >= -E && r <= 1 + E && g >= -E && g <= 1 + E && b >= -E && b <= 1 + E
+  );
+}
+
+function clampChroma(l, c, h) {
+  let rgb = oklchToLinearRGB(l, c, h);
+  if (inGamut(rgb.r, rgb.g, rgb.b)) return c;
+  let lo = 0,
+    hi = c;
+  for (let i = 0; i < 50; i++) {
+    const mid = (lo + hi) / 2;
+    rgb = oklchToLinearRGB(l, mid, h);
+    if (inGamut(rgb.r, rgb.g, rgb.b)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function formatHexOKLCH(l, c, h) {
+  const cc = clampChroma(l, c, h);
+  const rgb = oklchToLinearRGB(l, cc, h);
+  return toHex(gammaEncode(rgb.r), gammaEncode(rgb.g), gammaEncode(rgb.b));
+}
+
+// ── Contrast math ────────────────────────────────────────────────────────────
+
 function composeOver(fg, bg) {
-  const br = bg.a < 1 ? bg.a * bg.r + (1 - bg.a) : bg.r;
-  const bgc = bg.a < 1 ? bg.a * bg.g + (1 - bg.a) : bg.g;
-  const bb = bg.a < 1 ? bg.a * bg.b + (1 - bg.a) : bg.b;
+  let br = bg.r,
+    bgc = bg.g,
+    bb = bg.b;
+  if (bg.a < 1) {
+    br = bg.a * br + (1 - bg.a);
+    bgc = bg.a * bgc + (1 - bg.a);
+    bb = bg.a * bb + (1 - bg.a);
+  }
   return {
     r: fg.a * fg.r + (1 - fg.a) * br,
     g: fg.a * fg.g + (1 - fg.a) * bgc,
@@ -49,25 +180,99 @@ function luminance({ r, g, b }) {
   return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
 }
 
-function contrast(fgColor, bgColor) {
-  const fg = toRGBA(fgColor);
-  const bg = toRGBA(bgColor);
+function contrastRatio(fgHex, bgHex) {
+  const fg = parseHex(fgHex);
+  const bg = parseHex(bgHex);
   const fgEff = composeOver(fg, bg);
   const bgEff =
     bg.a < 1
       ? composeOver(bg, { r: 1, g: 1, b: 1, a: 1 })
       : { r: bg.r, g: bg.g, b: bg.b };
-  const hi = Math.max(luminance(fgEff), luminance(bgEff));
-  const lo = Math.min(luminance(fgEff), luminance(bgEff));
+  const l1 = luminance(fgEff);
+  const l2 = luminance(bgEff);
+  const hi = Math.max(l1, l2);
+  const lo = Math.min(l1, l2);
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// ── Color scale generation ────────────────────────────────────────────────────
-// 12-step OKLCH scale anchored at the brand hex (step 9 = exact input).
+// ── Neutral values from tokens/core/color.json ───────────────────────────────
+//   gray.1:  light=#fcfcfc  dark=#111111  → palette.neutral.1
+//   gray.12: light=#202020  dark=#eeeeee  → palette.neutral.12
+//   white:   #ffffff                      → palette.neutral.0
+
+const NEUTRALS = {
+  light: {
+    light: { hex: "#fcfcfc", ref: "{palette.neutral.1}" },
+    dark: { hex: "#202020", ref: "{palette.neutral.12}" },
+  },
+  dark: {
+    light: { hex: "#eeeeee", ref: "{palette.neutral.12}" },
+    dark: { hex: "#111111", ref: "{palette.neutral.1}" },
+  },
+  fallback: { hex: "#ffffff", ref: "{palette.neutral.0}" },
+};
+
+// ── computeOnColor (Opzione A corretta) ──────────────────────────────────────
+
+function computeOnColor(backgroundHex, mode) {
+  const cands = NEUTRALS[mode];
+  const rLight = contrastRatio(cands.light.hex, backgroundHex);
+  const rDark = contrastRatio(cands.dark.hex, backgroundHex);
+
+  let chosen, ratio;
+  if (rLight >= rDark) {
+    chosen = cands.light;
+    ratio = rLight;
+  } else {
+    chosen = cands.dark;
+    ratio = rDark;
+  }
+
+  const passed = ratio >= 4.5;
+
+  if (mode === "dark" && !passed) {
+    const rFallback = contrastRatio(NEUTRALS.fallback.hex, backgroundHex);
+    if (rFallback > ratio) {
+      return {
+        hex: NEUTRALS.fallback.hex,
+        ref: NEUTRALS.fallback.ref,
+        ratio: rFallback,
+        passed: rFallback >= 4.5,
+        fallback: true,
+      };
+    }
+  }
+
+  return { hex: chosen.hex, ref: chosen.ref, ratio, passed, fallback: false };
+}
+
+// ── computeOnColorPair (dual-mode aggregation) ──────────────────────────────
+
+function computeOnColorPair(lightSurfaceHex, darkSurfaceHex) {
+  const light = computeOnColor(lightSurfaceHex, "light");
+  const dark = computeOnColor(darkSurfaceHex, "dark");
+
+  const result = {
+    lightHex: light.hex,
+    darkHex: dark.hex,
+    lightRef: light.ref,
+    darkRef: dark.ref,
+    lightRatio: light.ratio,
+    darkRatio: dark.ratio,
+    lightPassed: light.passed,
+    darkPassed: dark.passed,
+  };
+
+  if (light.fallback) result.lightFallback = true;
+  if (dark.fallback) result.darkFallback = true;
+
+  return result;
+}
+
+// ── Scale generation ─────────────────────────────────────────────────────────
 
 function generateScale(anchorHex) {
-  const base = oklch(anchorHex);
-  if (!base) throw new Error(`Cannot parse color: ${anchorHex}`);
+  const base = hexToOKLCH(anchorHex);
 
   const LIGHT_L = [
     0.985,
@@ -98,22 +303,58 @@ function generateScale(anchorHex) {
     base.l + 0.32,
   ];
 
-  const mkStep = (l, c, h) =>
-    formatHex(clampChroma({ mode: "oklch", l, c, h }, "oklch"));
-
   const lightSteps = LIGHT_L.map((l, i) =>
-    mkStep(l, base.c * (i < 8 ? 0.6 + i * 0.05 : 1), base.h),
+    formatHexOKLCH(l, base.c * (i < 8 ? 0.6 + i * 0.05 : 1), base.h),
   );
   const darkSteps = DARK_L.map((l, i) =>
-    mkStep(l, base.c * (i < 8 ? 0.5 + i * 0.08 : 1), base.h),
+    formatHexOKLCH(l, base.c * (i < 8 ? 0.5 + i * 0.08 : 1), base.h),
   );
 
-  const anchor = formatHex(anchorHex);
+  const anchor = normalizeHex(anchorHex);
   lightSteps[8] = anchor;
   darkSteps[8] = anchor;
 
   return { lightSteps, darkSteps, anchor };
 }
+
+// ── Step selection ───────────────────────────────────────────────────────────
+
+function pickTextStep(lightSteps) {
+  const SURFACE_CARD = "#f9f9f9";
+  const candidates = [8, 9, 10, 11];
+  let best = null;
+  for (const idx of candidates) {
+    const hex = lightSteps[idx];
+    const r = contrastRatio(hex, SURFACE_CARD);
+    if (r >= 4.5) return { step: idx + 1, hex, ratio: r, passed: true };
+    if (!best || r > best.ratio) best = { idx, hex, ratio: r };
+  }
+  return {
+    step: best.idx + 1,
+    hex: best.hex,
+    ratio: best.ratio,
+    passed: false,
+  };
+}
+
+function pickIconStep(lightSteps) {
+  const candidates = [8, 9, 10, 11, 7];
+  let best = null;
+  for (const idx of candidates) {
+    const hex = lightSteps[idx];
+    const r = contrastRatio(hex, "#ffffff");
+    if (r >= 3.0) return { step: idx + 1, hex, ratio: r, passed: true };
+    if (!best || r > best.ratio) best = { idx, hex, ratio: r };
+  }
+  return {
+    step: best.idx + 1,
+    hex: best.hex,
+    ratio: best.ratio,
+    passed: false,
+  };
+}
+
+// ── Token tree builders ──────────────────────────────────────────────────────
 
 function buildColorTree(lightSteps, darkSteps, origin) {
   const tree = { $extensions: { nsp: { origin } } };
@@ -129,84 +370,38 @@ function buildColorTree(lightSteps, darkSteps, origin) {
   return tree;
 }
 
-// ── on-color selection ────────────────────────────────────────────────────────
-//
-// computeOnColor evaluates the best foreground (white or black) independently
-// for the light-mode and dark-mode hex of a surface. This is required because
-// hover/active surfaces use different scale steps per mode (e.g. step 10 in
-// light, step 8 in dark), and those steps can fall on opposite sides of the
-// light/dark divide — making a single static foreground impossible.
-//
-// Refs use palette.neutral which carries Radix modes automatically:
-//   neutral.0  = color.white  (#ffffff, always)
-//   neutral.12 = gray.12     (near-black in light, near-white in dark)
-//   neutral.1  = gray.1      (near-white in light, near-black in dark)
-//
-// Mapping:
-//   light surface needs white → lightRef neutral.0,  darkRef neutral.12
-//   light surface needs black → lightRef neutral.12, darkRef neutral.1
-//   dark surface needs white  → (handled via darkRef = neutral.12)
-//   dark surface needs black  → (handled via darkRef = neutral.1)
-
-function computeOnColor(lightSurfaceHex, darkSurfaceHex) {
-  const ratioLW = contrast("#ffffff", lightSurfaceHex);
-  const ratioLB = contrast("#000000", lightSurfaceHex);
-  const lightWhite = ratioLW >= ratioLB;
-  const ratioDW = contrast("#ffffff", darkSurfaceHex);
-  const ratioDB = contrast("#000000", darkSurfaceHex);
-  const darkWhite = ratioDW >= ratioDB;
-  return {
-    lightRef: lightWhite ? "{palette.neutral.0}" : "{palette.neutral.12}",
-    darkRef: darkWhite ? "{palette.neutral.12}" : "{palette.neutral.1}",
-    lightRatio: lightWhite ? ratioLW : ratioLB,
-    darkRatio: darkWhite ? ratioDW : ratioDB,
-    lightPassed: (lightWhite ? ratioLW : ratioLB) >= 4.5,
-    darkPassed: (darkWhite ? ratioDW : ratioDB) >= 4.5,
-    lightHex: lightWhite ? "#ffffff" : "#000000",
-    darkHex: darkWhite ? "#ffffff" : "#000000",
-  };
+function brandSlot(hueRef, origin) {
+  const slot = {};
+  for (let i = 1; i <= 12; i++)
+    slot[String(i)] = { $type: "color", $value: `{${hueRef}.${i}}` };
+  slot.default = { $type: "color", $value: `{${hueRef}.9}` };
+  slot.subtle = { $type: "color", $value: `{${hueRef}.3}` };
+  slot.hover = { $type: "color", $value: `{${hueRef}.10}` };
+  slot.$extensions = { nsp: { origin } };
+  return slot;
 }
 
-// pickTextStep: first step (scanning 9→12) that achieves 4.5:1 on surface.card light.
-// Uses gray.2 (#f9f9f9) — the least favourable reading surface — not pure white.
-// White is ~3% more luminant; passing on white can fail 4.5:1 on tinted backgrounds.
-// When none pass, returns the step with the highest contrast (best available).
-function pickTextStep(lightSteps) {
-  const SURFACE_CARD = "#f9f9f9"; // gray.2 = surface.card/raised light
-  const candidates = [8, 9, 10, 11];
-  let best = null;
-  for (const idx of candidates) {
-    const hex = lightSteps[idx];
-    const r = contrast(hex, SURFACE_CARD);
-    if (r >= 4.5) return { step: idx + 1, hex, ratio: r, passed: true };
-    if (!best || r > best.ratio) best = { idx, hex, ratio: r };
-  }
-  return {
-    step: best.idx + 1,
-    hex: best.hex,
-    ratio: best.ratio,
-    passed: false,
-  };
+function ghostSlot(hueRef, origin) {
+  const slot = {};
+  for (let i = 1; i <= 12; i++)
+    slot[String(i)] = { $type: "color", $value: `{${hueRef}.${i}}` };
+  slot.default = { $type: "color", $value: `{${hueRef}.3}` };
+  slot.hover = { $type: "color", $value: `{${hueRef}.4}` };
+  slot.active = { $type: "color", $value: `{${hueRef}.5}` };
+  slot.text = { $type: "color", $value: `{${hueRef}.11}` };
+  slot.$extensions = { nsp: { origin } };
+  return slot;
 }
 
-// pickIconStep: first step (scanning 9→12→8) that achieves 3:1 on white.
-// When none pass, returns the step with the highest contrast (best available).
-function pickIconStep(lightSteps) {
-  const candidates = [8, 9, 10, 11, 7];
-  let best = null;
-  for (const idx of candidates) {
-    const hex = lightSteps[idx];
-    const r = contrast(hex, "#ffffff");
-    if (r >= 3.0) return { step: idx + 1, hex, ratio: r, passed: true };
-    if (!best || r > best.ratio) best = { idx, hex, ratio: r };
-  }
-  return {
-    step: best.idx + 1,
-    hex: best.hex,
-    ratio: best.ratio,
-    passed: false,
-  };
+function graySlot(origin) {
+  const slot = {};
+  for (let i = 1; i <= 12; i++)
+    slot[String(i)] = { $type: "color", $value: `{palette.neutral.${i}}` };
+  slot.default = { $type: "color", $value: "{palette.neutral.9}" };
+  slot.$extensions = { nsp: { origin } };
+  return slot;
 }
+// @generated-end:generate-scale
 
 // ── readline helpers ──────────────────────────────────────────────────────────
 
@@ -229,8 +424,12 @@ function validateName(v) {
 
 function validateHex(v) {
   if (!v) return null;
-  if (!parse(v)) return `Cannot parse "${v}" — use a hex value like #2563eb`;
-  return null;
+  try {
+    parseHex(v);
+    return null;
+  } catch {
+    return `Cannot parse "${v}" — use a hex value like #2563eb`;
+  }
 }
 
 function validateRequiredHex(v) {
@@ -245,36 +444,6 @@ const ct = (light, dark) => ({
   $value: light,
   $extensions: { "com.figma.modes": { light, dark } },
 });
-
-function brandSlot(hueRef, origin) {
-  const slot = {};
-  for (let i = 1; i <= 12; i++)
-    slot[String(i)] = { $type: "color", $value: `{${hueRef}.${i}}` };
-  slot.default = { $type: "color", $value: `{${hueRef}.9}` };
-  slot.subtle = { $type: "color", $value: `{${hueRef}.3}` };
-  slot.hover = { $type: "color", $value: `{${hueRef}.10}` };
-  slot.$extensions = { nsp: { origin } };
-  return slot;
-}
-
-// ghostSlot: used when secondary is auto-derived from the primary scale.
-// Unlike brandSlot (.default=step9), ghost secondary uses soft/tint steps:
-//   .default = step 3  (ghost surface background)
-//   .hover   = step 4  (ghost hover surface)
-//   .active  = step 5  (ghost pressed/active surface)
-//   .text    = step 11 (accessible text on white using this hue)
-// Steps 1-12 are still aliased so semantic tokens can reference any step directly.
-function ghostSlot(hueRef, origin) {
-  const slot = {};
-  for (let i = 1; i <= 12; i++)
-    slot[String(i)] = { $type: "color", $value: `{${hueRef}.${i}}` };
-  slot.default = { $type: "color", $value: `{${hueRef}.3}` };
-  slot.hover = { $type: "color", $value: `{${hueRef}.4}` };
-  slot.active = { $type: "color", $value: `{${hueRef}.5}` };
-  slot.text = { $type: "color", $value: `{${hueRef}.11}` };
-  slot.$extensions = { nsp: { origin } };
-  return slot;
-}
 
 // ── main ──────────────────────────────────────────────────────────────────────
 
@@ -390,13 +559,13 @@ async function main() {
     // from bright (light) to dark (dark) gets the correct foreground in each.
 
     // Primary base surface (step 9, same hex in both modes)
-    const onPrimary = computeOnColor(
+    const onPrimary = computeOnColorPair(
       primaryScale.lightSteps[8],
       primaryScale.darkSteps[8],
     );
 
     // Primary hover/active surface (step 10 in light, step 8 in dark)
-    const onPrimaryHover = computeOnColor(
+    const onPrimaryHover = computeOnColorPair(
       primaryScale.lightSteps[9],
       primaryScale.darkSteps[7],
     );
@@ -409,7 +578,7 @@ async function main() {
       onPrimary.darkRef !== onPrimaryHover.darkRef;
 
     // Primary active surface (step 11 in light, step 7 in dark)
-    const onPrimaryActive = computeOnColor(
+    const onPrimaryActive = computeOnColorPair(
       primaryScale.lightSteps[10],
       primaryScale.darkSteps[6],
     );
@@ -418,7 +587,7 @@ async function main() {
       onPrimary.darkRef !== onPrimaryActive.darkRef;
 
     // Secondary: surface.secondary = step 3 (same step in both modes)
-    const onSecondary = computeOnColor(
+    const onSecondary = computeOnColorPair(
       secondaryScale.lightSteps[2],
       secondaryScale.darkSteps[2],
     );

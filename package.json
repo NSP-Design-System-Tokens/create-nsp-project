@@ -9,9 +9,7 @@
   "files": [
     "index.mjs"
   ],
-  "dependencies": {
-    "culori": "^4.0.1"
-  },
+  "dependencies": {},
   "engines": {
     "node": ">=18"
   }

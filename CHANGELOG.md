@@ -7,6 +7,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- On-color tokens now use real neutral grays (`{palette.neutral.1}` = #fcfcfc,
+  `{palette.neutral.12}` = #202020) instead of raw `#ffffff`/`#000000`.
+  This is the canonical Opzione A behavior from `generate-scale.mjs`.
+  **Breaking:** re-scaffolded projects will produce different on-color token
+  values (refs and hex). No real brand projects exist yet.
+
+### Changed
+
+- Color engine migrated from `culori` to the canonical zero-dependency OKLCH
+  generator vendorized from `nsp-ds-tokens/scripts/lib/generate-scale.mjs`.
+  Scale values are numerically identical; only on-color refs change.
+- `culori` removed from CLI dependencies. Generated brand projects still
+  depend on it via `nsp-ds-tokens`.
+- `computeOnColor(lightHex, darkHex)` call sites replaced by
+  `computeOnColorPair(lightHex, darkHex)` from the canonical API.
+
+### Added
+
+- `scripts/sync-generate-scale.mjs` — sync script with SHA-256 self-check.
+  Vendorizes the canonical generator into `index.mjs` between `@generated`
+  markers. Run whenever `generate-scale.mjs` changes in `nsp-ds-tokens`.
+
 ---
 
 ## [0.4.0] — 2026-09-03
